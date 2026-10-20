@@ -206,11 +206,11 @@ fs.mkdirSync(MEDIA, { recursive: true })
 
 const now = Date.now()
 const tagGroups = [
-  { id: 'g1', name: '风格', color: '#7c9cff', order: 0 },
-  { id: 'g2', name: '题材', color: '#4fd1a5', order: 1 },
-  { id: 'g3', name: '镜头', color: '#f5a524', order: 2 },
-  { id: 'g4', name: '画质', color: '#c77dff', order: 3 },
-  { id: 'g5', name: '用途', color: '#ff7a8a', order: 4 }
+  { id: 'g1', name: '风格', color: '#c7c7cc', order: 0 },
+  { id: 'g2', name: '题材', color: '#a1a1aa', order: 1 },
+  { id: 'g3', name: '镜头', color: '#8e8e93', order: 2 },
+  { id: 'g4', name: '画质', color: '#71717a', order: 3 },
+  { id: 'g5', name: '用途', color: '#5a5a60', order: 4 }
 ]
 const TAG_GROUP = {
   赛博朋克: 'g1', 水墨: 'g1', 胶片: 'g1', 极简: 'g1', 低多边形: 'g1', 粗野主义: 'g1',
@@ -228,8 +228,8 @@ const tags = Object.keys(TAG_GROUP).map((name, i) => ({
 const tagIdByName = new Map(tags.map((t) => [t.name, t.id]))
 
 const collections = [
-  { id: 'c1', name: '视觉实验', color: '#7c9cff', createdAt: new Date(now).toISOString() },
-  { id: 'c2', name: '客户A', color: '#4fd1a5', createdAt: new Date(now).toISOString() }
+  { id: 'c1', name: '视觉实验', color: '#a1a1aa', createdAt: new Date(now).toISOString() },
+  { id: 'c2', name: '客户A', color: '#71717a', createdAt: new Date(now).toISOString() }
 ]
 
 const assets = []

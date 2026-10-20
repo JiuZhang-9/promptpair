@@ -32,6 +32,13 @@ require('../out/main/index.js')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function shot(win, name) {
+  // 无头/离屏环境下窗口不会自动重绘，capturePage 会拿到旧帧。
+  // 经验证：改一次尺寸再改回来能强制一次完整合成（invalidate 不够）。
+  const [w, h] = win.getSize()
+  win.setSize(w + 2, h)
+  await sleep(160)
+  win.setSize(w, h)
+  await sleep(520)
   const img = await win.webContents.capturePage()
   const buf = img.toPNG()
   fs.writeFileSync(path.join(OUT, name + '.png'), buf)
@@ -136,28 +143,59 @@ app.whenReady().then(async () => {
     await shot(win, '04-batch')
 
     // 设置面板
-    await win.webContents.executeJavaScript(`
+    const dbg1 = await win.webContents.executeJavaScript(`
       (() => {
-        const esc = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
-        document.dispatchEvent(esc)
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
         const btns = [...document.querySelectorAll('.tb-actions .icon-btn')]
-        if (btns.length) btns[btns.length-1].click()
-        return true
+        if (btns.length) btns[btns.length - 1].click()
+        return { iconBtns: btns.length }
       })()
     `)
-    await sleep(700)
+    console.log('  诊断 设置点击:', JSON.stringify(dbg1))
+    await sleep(800)
+    const dbg2 = await win.webContents.executeJavaScript(`
+      (() => ({
+        setGroups: document.querySelectorAll('.set-group').length,
+        theme: document.documentElement.dataset.theme,
+        btns: [...document.querySelectorAll('.set-group .seg-btn')].map(b => b.textContent)
+      }))()
+    `)
+    console.log('  诊断 面板状态:', JSON.stringify(dbg2))
     await shot(win, '05-settings')
 
+    // 局部放大：检查开关与分段控件
+    const [ww, hh] = win.getSize()
+    win.setSize(ww + 2, hh)
+    await sleep(160)
+    win.setSize(ww, hh)
+    await sleep(500)
+    const full = await win.webContents.capturePage()
+    const sz = full.getSize()
+    // 设置面板在页面右侧 410px 宽，取它的左半部分放大看控件
+    const zs = full.crop({
+      x: Math.max(0, sz.width - 410),
+      y: 46,
+      width: Math.min(410, sz.width),
+      height: Math.min(430, sz.height - 46)
+    })
+    fs.writeFileSync(path.join(OUT, '05b-settings-zoom.png'), zs.toPNG())
+    console.log('  ✓ 05b-settings-zoom.png  (' + sz.width + 'x' + sz.height + ')')
+
     // 浅色主题
-    await win.webContents.executeJavaScript(`
+    const dbg3 = await win.webContents.executeJavaScript(`
       (() => {
         const segs = [...document.querySelectorAll('.set-group .seg-btn')]
         const light = segs.find(s => s.textContent.includes('浅色'))
         if (light) light.click()
-        return !!light
+        return { clicked: !!light }
       })()
     `)
-    await sleep(900)
+    console.log('  诊断 浅色点击:', JSON.stringify(dbg3))
+    await sleep(1000)
+    const dbg4 = await win.webContents.executeJavaScript(
+      `({ theme: document.documentElement.dataset.theme, bg: getComputedStyle(document.body).backgroundColor })`
+    )
+    console.log('  诊断 主题结果:', JSON.stringify(dbg4))
     await shot(win, '06-light')
   } catch (e) {
     console.error('截图过程出错:', e)
