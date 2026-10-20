@@ -10,13 +10,15 @@
   "private": true,
   "main": "./out/main/index.js",
   "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "clean:dry": "node scripts/clean.mjs -- --dry",
+    "icon": "node scripts/make-icon.mjs",
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
+    "build": "electron-vite build",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
-    "typecheck": "npm run typecheck:node && npm run typecheck:web",
-    "build": "electron-vite build",
-    "icon": "node scripts/make-icon.mjs",
     "dist": "npm run icon && npm run build && electron-builder --win --x64",
     "dist:dir": "npm run icon && npm run build && electron-builder --win --x64 --dir"
   },

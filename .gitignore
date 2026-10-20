@@ -2,12 +2,18 @@
 node_modules/
 .pnpm-store/
 
-# 构建产物
+# 构建产物：唯一合法目录是 release/（见 docs/发布规范.md 第 9 节）
+# out/ 是 electron-vite 的编译中间产物，release/ 是 electron-builder 的打包产物
 out/
 release/
+dist/
+
+# 历史遗留的临时产物目录。正常不该出现；出现说明有人用
+# --config.directories.output=xxx 绕过占用，属于违规操作，跑 npm run clean 收拾
 release-old/
 rel/
-dist/
+rel2/
+rel3/
 
 # 图标由 scripts/make-icon.mjs 生成，但 build/icon.ico 需要入库
 # （electron-builder 打包时直接读取），因此只忽略临时截图

@@ -74,7 +74,13 @@ npm run dev          # 开发模式（热更新）
 npm run typecheck    # 类型检查
 npm run build        # 只编译，不打包
 npm run dist         # 生成 Windows 安装包到 release/
+npm run clean        # 清空构建产物（构建失败时先跑它）
 ```
+
+> **产物目录只有一个：`release/`。**
+> 构建报「文件被占用」时，先 `npm run clean` 再重来，
+> **不要**用 `--config.directories.output=xxx` 换个目录绕过去 —— 那正是仓库里一度出现
+> `rel/`、`rel2/` 三个产物目录的原因。规则见 [docs/发布规范.md 第 9 节](docs/发布规范.md)。
 
 ### 环境要求
 
