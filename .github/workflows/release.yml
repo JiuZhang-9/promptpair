@@ -44,6 +44,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify publish config
+        run: node scripts/check-publish-config.mjs
+
       - name: Type check
         run: npm run typecheck
 

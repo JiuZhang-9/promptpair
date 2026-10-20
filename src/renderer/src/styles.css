@@ -2725,11 +2725,14 @@ input[type='range']:hover::-webkit-slider-thumb {
 }
 
 .set-label small {
-  display: block;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   font-size: 10px;
   color: var(--fg-4);
   margin-top: 2px;
-  word-break: break-all;
+  word-break: break-word;
   line-height: 1.45;
 }
 
