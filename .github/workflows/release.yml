@@ -61,6 +61,23 @@ jobs:
           ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
         run: npx electron-builder --win --x64 --publish always
 
+      - name: Attach CHANGELOG to release notes
+        if: always() && (success() || steps.publish.conclusion == 'success')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          echo "为 $TAG 写入发布说明…"
+          node scripts/changelog-section.mjs "$VERSION" --with-title > release-notes.md || true
+          if [ -s release-notes.md ]; then
+            gh release edit "$TAG" --notes-file release-notes.md || echo "⚠️ 写入发布说明失败（Release 可能尚未就绪）"
+          else
+            echo "⚠️ CHANGELOG 里没有 [$VERSION] 段落，跳过"
+          fi
+
       - name: Upload artifacts (backup)
         uses: actions/upload-artifact@v4
         with:
