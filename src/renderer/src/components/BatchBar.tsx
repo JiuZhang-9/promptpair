@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { groupMap, selectEntries, useStore } from '../store'
-import { Icon, Modal, Stars, hexAlpha } from './ui'
+import { Icon, Modal, Stars } from './ui'
 
 export default function BatchBar(): React.ReactElement | null {
   const selectedIds = useStore((s) => s.selectedIds)
@@ -177,7 +177,7 @@ export default function BatchBar(): React.ReactElement | null {
                   <span className="gdot" style={{ background: color }} />
                   <span className="ellipsis">{t.name}</span>
                   {cnt > 0 && (
-                    <em style={{ color: hexAlpha(color, 0.9) }}>
+                    <em>
                       已含 {cnt}/{selectedIds.length}
                     </em>
                   )}

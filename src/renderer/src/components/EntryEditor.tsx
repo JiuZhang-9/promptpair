@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset, EntryDraft } from '../../../shared/types'
 import { assetMap, groupMap, tagMap, thumbUrl, useStore } from '../store'
-import { Field, Icon, Modal, Stars, copyText, formatBytes, hexAlpha } from './ui'
+import { Field, Icon, Modal, Stars, copyText, formatBytes } from './ui'
 
-const PRESET_COLORS = ['#7c9cff', '#4fd1a5', '#f5a524', '#c77dff', '#ff7a8a', '#59c2ff', '#a3e635']
+// 单色设计：集合/标签组一律用灰阶，不用彩色
+const PRESET_COLORS = ['#c7c7cc', '#a1a1aa', '#8e8e93', '#71717a', '#5a5a60', '#b4b4bb', '#3f3f46']
 
 function TagPicker({
   selected,
@@ -62,7 +63,6 @@ function TagPicker({
                 key={id}
                 type="button"
                 className="pill removable"
-                style={{ color, background: hexAlpha(color, 0.14), borderColor: hexAlpha(color, 0.34) }}
                 onClick={() => onChange(selected.filter((x) => x !== id))}
                 title="点击移除"
               >
@@ -395,11 +395,6 @@ export default function EntryEditor(): React.ReactElement | null {
                     key={c.id}
                     type="button"
                     className={'pill clickable' + (on ? ' on' : '')}
-                    style={
-                      on
-                        ? { color: c.color, background: hexAlpha(c.color, 0.16), borderColor: hexAlpha(c.color, 0.4) }
-                        : undefined
-                    }
                     onClick={() =>
                       patch({
                         collectionIds: on

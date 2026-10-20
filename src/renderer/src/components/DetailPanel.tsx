@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { assetMap, collMap, groupMap, mediaUrl, tagMap, thumbUrl, useStore } from '../store'
-import { Icon, Stars, copyText, formatBytes, formatDate, hexAlpha } from './ui'
+import { Icon, Stars, copyText, formatBytes, formatDate } from './ui'
 
 export default function DetailPanel(): React.ReactElement | null {
   const detailId = useStore((s) => s.detailId)
@@ -230,13 +230,8 @@ export default function DetailPanel(): React.ReactElement | null {
                 {entry.tagIds.map((id) => {
                   const t = tags.get(id)
                   if (!t) return null
-                  const color = groups.get(t.groupId)?.color ?? '#8b95a8'
                   return (
-                    <span
-                      key={id}
-                      className="pill"
-                      style={{ color, background: hexAlpha(color, 0.13), borderColor: hexAlpha(color, 0.3) }}
-                    >
+                    <span key={id} className="pill">
                       {t.name}
                     </span>
                   )
@@ -253,12 +248,8 @@ export default function DetailPanel(): React.ReactElement | null {
                   const c = colls.get(id)
                   if (!c) return null
                   return (
-                    <span
-                      key={id}
-                      className="pill"
-                      style={{ color: c.color, background: hexAlpha(c.color, 0.12), borderColor: hexAlpha(c.color, 0.3) }}
-                    >
-                      <span className="cdot" style={{ background: c.color }} />
+                    <span key={id} className="pill">
+                      <span className="cdot" />
                       {c.name}
                     </span>
                   )

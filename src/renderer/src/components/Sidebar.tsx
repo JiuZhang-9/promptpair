@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react'
 import { useStore, tagMap, groupMap, selectEntries } from '../store'
-import { Icon, hexAlpha } from './ui'
+import { Icon } from './ui'
 
-const PRESET_COLORS = ['#7c9cff', '#4fd1a5', '#f5a524', '#c77dff', '#ff7a8a', '#59c2ff', '#a3e635']
+// 单色设计：集合/标签组一律用灰阶，不用彩色
+const PRESET_COLORS = ['#c7c7cc', '#a1a1aa', '#8e8e93', '#71717a', '#5a5a60', '#b4b4bb', '#3f3f46']
 
 function Section({
   title,
@@ -387,11 +388,6 @@ export default function Sidebar(): React.ReactElement {
                         key={t.id}
                         type="button"
                         className={'tagchip' + (tagIds.includes(t.id) ? ' on' : '')}
-                        style={
-                          tagIds.includes(t.id)
-                            ? { background: hexAlpha(color, 0.2), borderColor: hexAlpha(color, 0.6), color }
-                            : { color: 'var(--fg-2)', borderColor: 'var(--line-2)', background: 'transparent' }
-                        }
                         onClick={(e) => {
                           e.stopPropagation()
                           toggleTag(t.id)

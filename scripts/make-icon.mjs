@@ -2,6 +2,7 @@
  * 生成 build/icon.ico（多尺寸，PNG 编码的 ICO 条目，Windows Vista+ 支持）
  * 纯 Node 实现，零图形依赖：手写 PNG 编码 + ICO 容器。
  * 图形语义：一枚描边的方框（提示词）与一枚实心方框（产物）交叠 = "配对"。
+ * 单色设计：近黑圆角底 + 纯白图形，不用渐变彩色。
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -81,8 +82,9 @@ function render(size) {
   const S = size * SS
   const acc = new Float32Array(size * size * 4)
 
-  const C1 = [0x6c, 0x8c, 0xff]
-  const C2 = [0x9d, 0x7c, 0xff]
+  // 单色：近黑底 + 纯白标记，与界面同一套视觉语言
+  const C1 = [18, 18, 20]
+  const C2 = [30, 30, 34]
 
   const bgHalf = S / 2
   const bgR = S * 0.225
@@ -116,10 +118,10 @@ function render(size) {
 
       const dBg = roundedRectSdf(px, py, bgHalf, bgHalf, bgHalf - S * 0.02, bgHalf - S * 0.02, bgR)
       let bgAlpha = Math.min(1, Math.max(0, 0.5 - dBg / feather))
-      // 顶部高光
-      r = Math.min(255, r + (1 - py / S) * 26)
-      gg = Math.min(255, gg + (1 - py / S) * 20)
-      b = Math.min(255, b + (1 - py / S) * 10)
+      // 极轻的顶部提亮，避免整块死黑
+      r = Math.min(255, r + (1 - py / S) * 7)
+      gg = Math.min(255, gg + (1 - py / S) * 7)
+      b = Math.min(255, b + (1 - py / S) * 8)
       a = bgAlpha
 
       // A：描边方框

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { useShallow } from 'zustand/react/shallow'
 import type { Asset, PromptEntry } from '../../../shared/types'
 import { assetMap, selectEntries, tagMap, thumbUrl, useStore, groupMap } from '../store'
-import { Empty, Icon, Stars, hexAlpha } from './ui'
+import { Empty, Icon, Stars } from './ui'
 
 const PAD = 18
 const GAP = 14
@@ -115,11 +115,7 @@ function Card({
               const t = tagInfo.get(id)
               if (!t) return null
               return (
-                <span
-                  key={id}
-                  className="mini-tag"
-                  style={{ color: t.color, background: hexAlpha(t.color, 0.12) }}
-                >
+                <span key={id} className="mini-tag">
                   {t.name}
                 </span>
               )

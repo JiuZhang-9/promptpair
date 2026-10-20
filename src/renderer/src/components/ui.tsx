@@ -155,7 +155,6 @@ export function Stars({
 
 export function TagChip({
   name,
-  color,
   active,
   count,
   onClick,
@@ -170,16 +169,11 @@ export function TagChip({
   onContextMenu?: (e: React.MouseEvent) => void
   small?: boolean
 }): React.ReactElement {
-  const c = color || 'var(--fg-3)'
+  // 单色设计：标签不再按组上色，选中态用「反白」表达，避免调色盘效应
   return (
     <button
       type="button"
       className={'tagchip' + (active ? ' on' : '') + (small ? ' sm' : '')}
-      style={
-        active
-          ? { background: hexAlpha(c, 0.18), borderColor: hexAlpha(c, 0.55), color: brighten(c) }
-          : { color: c, borderColor: hexAlpha(c, 0.28), background: hexAlpha(c, 0.07) }
-      }
       onClick={onClick}
       onContextMenu={onContextMenu}
       title={count !== undefined ? `${name} · ${count} 条` : name}

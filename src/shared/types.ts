@@ -226,13 +226,14 @@ export interface UpdateStatus {
   message?: string
 }
 
-/** 默认标签组：给出可用的初始分类法，用户可自由改名/删改 */
+/** 默认标签组：给出可用的初始分类法，用户可自由改名/删改。
+ *  单色设计：组色是灰阶而非彩色，只用来区分相邻分组，不制造"调色盘" */
 export const DEFAULT_TAG_GROUPS: { name: string; color: string }[] = [
-  { name: '风格', color: '#7c9cff' },
-  { name: '题材', color: '#4fd1a5' },
-  { name: '镜头', color: '#f5a524' },
-  { name: '画质', color: '#c77dff' },
-  { name: '用途', color: '#ff7a8a' }
+  { name: '风格', color: '#c7c7cc' },
+  { name: '题材', color: '#a1a1aa' },
+  { name: '镜头', color: '#8e8e93' },
+  { name: '画质', color: '#71717a' },
+  { name: '用途', color: '#5a5a60' }
 ]
 
 export const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.avif']
