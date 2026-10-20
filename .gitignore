@@ -1,0 +1,34 @@
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 构建产物
+out/
+release/
+release-old/
+rel/
+dist/
+
+# 图标由 scripts/make-icon.mjs 生成，但 build/icon.ico 需要入库
+# （electron-builder 打包时直接读取），因此只忽略临时截图
+build/shots/
+
+# 视觉验收用的演示库与临时 userData
+.smoke/
+
+# 编辑器 / 系统
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 本地环境变量
+.env
+.env.local
+
+# 打包产出物（体积大，不进仓库）
+*.promptpack

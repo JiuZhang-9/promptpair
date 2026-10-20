@@ -1,0 +1,68 @@
+# ═══════════════════════════════════════════════════════════
+# electron-builder 打包配置 · PromptPair
+# 发布规则见 docs/发布规范.md
+#   - 版本号遵循 SemVer 2.0.0，git tag 形如 v1.2.3
+#   - 只有打了 tag 的提交才会由 CI 构建并发布到 GitHub Releases
+#   - 自动更新走 electron-updater，读取 latest.yml
+# ═══════════════════════════════════════════════════════════
+
+appId: com.promptpair.app
+productName: PromptPair
+copyright: Copyright © 2026 PromptPair
+
+directories:
+  buildResources: build
+  output: release
+
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+  - '!**/*.ts'
+
+# 浏览器插件随安装包一起分发，用户从「设置 → 浏览器插件采集 → 打开」拿到目录
+extraResources:
+  - from: extension
+    to: extension
+    filter:
+      - '**/*'
+
+asar: true
+compression: maximum
+removePackageScripts: true
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # 安装包签名：没有代码签名证书时保持 false，Windows 会显示"未知发布者"
+  signAndEditExecutable: true
+  requestedExecutionLevel: asInvoker
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: PromptPair
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  deleteAppDataOnUninstall: false
+  # 中文安装界面（2052 = 简体中文）
+  installerLanguages:
+    - zh_CN
+  language: '2052'
+  artifactName: PromptPair-Setup-${version}.${ext}
+  # 卸载时保留素材库（素材库在文档目录，本就不受影响）
+  include: build/installer.nsh
+
+publish:
+  provider: github
+  owner: JiuZhang-9
+  repo: promptpair
+  releaseType: release

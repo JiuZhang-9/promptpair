@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        width: 288px;
+        margin: 0;
+        padding: 14px;
+        background: #12161d;
+        color: #e7ecf5;
+        font:
+          13px/1.5 -apple-system,
+          'Segoe UI',
+          'Microsoft YaHei',
+          sans-serif;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .mark {
+        width: 22px;
+        height: 22px;
+        position: relative;
+        flex: none;
+      }
+      .mark i {
+        position: absolute;
+        display: block;
+        border-radius: 5px;
+      }
+      .mark i:first-child {
+        width: 13px;
+        height: 13px;
+        left: 0;
+        top: 0;
+        background: linear-gradient(135deg, #6c8cff, #9d7cff);
+      }
+      .mark i:last-child {
+        width: 13px;
+        height: 13px;
+        right: 0;
+        bottom: 0;
+        border: 2px solid #6c8cff;
+      }
+      b {
+        font-size: 13.5px;
+        letter-spacing: 0.2px;
+      }
+      .sub {
+        font-size: 10px;
+        color: #6a7486;
+        letter-spacing: 1.4px;
+      }
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        background: #171c24;
+        border: 1px solid #232a35;
+        border-radius: 9px;
+        padding: 8px 10px;
+        font-size: 12px;
+        margin-bottom: 10px;
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #6a7486;
+        flex: none;
+      }
+      .dot.on {
+        background: #35d39b;
+        box-shadow: 0 0 0 3px rgba(53, 211, 155, 0.16);
+      }
+      .dot.off {
+        background: #ff6b81;
+        box-shadow: 0 0 0 3px rgba(255, 107, 129, 0.16);
+      }
+      .status span {
+        color: #98a3b5;
+        font-size: 11.5px;
+      }
+      button {
+        width: 100%;
+        height: 34px;
+        border: 0;
+        border-radius: 9px;
+        font:
+          600 12.5px/1 inherit;
+        font-family: inherit;
+        cursor: pointer;
+        margin-bottom: 7px;
+      }
+      .primary {
+        background: linear-gradient(135deg, #6c8cff, #5a78f0);
+        color: #fff;
+        box-shadow: 0 3px 14px rgba(108, 140, 255, 0.35);
+      }
+      .primary:hover {
+        filter: brightness(1.08);
+      }
+      .ghost {
+        background: #1d222b;
+        color: #cfd6e2;
+        border: 1px solid #2e3746;
+      }
+      .ghost:hover {
+        background: #232a35;
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .tip {
+        font-size: 11px;
+        color: #6a7486;
+        line-height: 1.7;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #232a35;
+      }
+      .tip b {
+        color: #98a3b5;
+        font-size: 11px;
+      }
+      kbd {
+        font:
+          600 10px/1 ui-monospace,
+          monospace;
+        background: #232a35;
+        color: #98a3b5;
+        padding: 2px 5px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="brand">
+      <div class="mark"><i></i><i></i></div>
+      <div>
+        <b>PromptPair</b>
+        <div class="sub">提示词采集</div>
+      </div>
+    </div>
+
+    <div class="status">
+      <div class="dot" id="dot"></div>
+      <span id="statusText">正在检测桌面端…</span>
+    </div>
+
+    <button class="primary" id="pick">框选采集当前页</button>
+    <button class="ghost" id="retry">重新检测连接</button>
+
+    <div class="tip">
+      <b>用法</b><br />
+      1. 先在页面上<b>选中提示词文字</b>（可选）<br />
+      2. 按 <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> 或点上面的按钮<br />
+      3. 鼠标移到图片上单击，即可收进素材库
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

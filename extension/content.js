@@ -1,0 +1,320 @@
+/* PromptPair 框选采集器（注入到页面里运行）
+ *
+ * 交互：进入框选模式 → 鼠标悬停高亮目标图/视频 → 单击确认 → 发送给桌面端
+ * 退出：Esc 或右键
+ * 说明：所有样式都用内联 style 设置，避免被页面 CSP 拦截；不影响页面原有事件。
+ */
+
+;(function () {
+  if (window.__ppPickerInstalled) {
+    // 已注入过，只需由监听器接收新指令
+    return
+  }
+  window.__ppPickerInstalled = true
+
+  let state = null // { selection, pageUrl, pageTitle, platform, overlay, box, bar }
+
+  const HOST_ID = '__pp_picker_host__'
+
+  function ensureHost() {
+    let host = document.getElementById(HOST_ID)
+    if (!host) {
+      host = document.createElement('div')
+      host.id = HOST_ID
+      host.style.cssText = [
+        'position:fixed',
+        'inset:0',
+        'z-index:2147483647',
+        'pointer-events:none',
+        'display:block'
+      ].join(';')
+      document.documentElement.appendChild(host)
+    }
+    return host
+  }
+
+  function removeUi() {
+    const host = document.getElementById(HOST_ID)
+    if (host) host.remove()
+  }
+
+  function isMediaEl(el) {
+    if (!el) return false
+    const tag = el.tagName
+    if (tag === 'IMG' || tag === 'VIDEO') return true
+    if (tag === 'CANVAS') return true
+    // 背景图
+    try {
+      const bg = getComputedStyle(el).backgroundImage
+      if (bg && bg !== 'none' && bg.includes('url(')) {
+        const r = el.getBoundingClientRect()
+        return r.width > 120 && r.height > 120
+      }
+    } catch (e) {
+      /* ignore */
+    }
+    return false
+  }
+
+  /** 从被点击元素向上找，或向下找面积最大的媒体元素 */
+  function resolveTarget(el) {
+    if (!el) return null
+    if (isMediaEl(el)) return el
+
+    // 向下找最大的 img/video
+    let best = null
+    let bestArea = 0
+    const kids = el.querySelectorAll ? el.querySelectorAll('img,video,canvas') : []
+    for (const k of kids) {
+      const r = k.getBoundingClientRect()
+      const area = r.width * r.height
+      if (area > bestArea) {
+        bestArea = area
+        best = k
+      }
+    }
+    if (best && bestArea > 4000) return best
+
+    // 向上找 3 层
+    let p = el.parentElement
+    for (let i = 0; i < 3 && p; i++) {
+      const cand = p.querySelector('img,video,canvas')
+      if (cand) return cand
+      p = p.parentElement
+    }
+    return null
+  }
+
+  function urlOf(el) {
+    if (!el) return null
+    const tag = el.tagName
+    if (tag === 'IMG') return el.currentSrc || el.src || null
+    if (tag === 'VIDEO') return el.currentSrc || el.src || null
+    if (tag === 'CANVAS') {
+      try {
+        return el.toDataURL('image/png')
+      } catch (e) {
+        return null
+      }
+    }
+    try {
+      const bg = getComputedStyle(el).backgroundImage
+      const m = /url\(["']?(.*?)["']?\)/.exec(bg)
+      if (m) return m[1]
+    } catch (e) {
+      /* ignore */
+    }
+    return null
+  }
+
+  /** 尽力猜测页面上的提示词（用户没选文字时的兜底） */
+  function guessPrompt() {
+    const sels = [
+      'textarea[placeholder*="提示词"]',
+      'textarea[placeholder*="prompt" i]',
+      'textarea[placeholder*="描述"]',
+      '[class*="prompt"] textarea',
+      '[class*="prompt"] [contenteditable="true"]',
+      '[data-testid*="prompt"]'
+    ]
+    for (const s of sels) {
+      const el = document.querySelector(s)
+      if (el) {
+        const v = el.value || el.innerText || el.textContent || ''
+        if (v.trim().length > 4) return v.trim()
+      }
+    }
+    return ''
+  }
+
+  function showBox(rect) {
+    if (!state) return
+    state.box.style.cssText = [
+      'position:fixed',
+      `left:${rect.left}px`,
+      `top:${rect.top}px`,
+      `width:${rect.width}px`,
+      `height:${rect.height}px`,
+      'border:2px solid #6c8cff',
+      'background:rgba(108,140,255,0.12)',
+      'border-radius:6px',
+      'box-shadow:0 0 0 9999px rgba(8,10,16,0.45)',
+      'pointer-events:none',
+      'transition:all 60ms linear'
+    ].join(';')
+  }
+
+  function toast(msg, kind) {
+    const host = ensureHost()
+    const t = document.createElement('div')
+    const bg = kind === 'err' ? '#ff6b81' : '#35d39b'
+    const fg = kind === 'err' ? '#2a0710' : '#04211a'
+    t.style.cssText = [
+      'position:fixed',
+      'left:50%',
+      'bottom:32px',
+      'transform:translateX(-50%)',
+      `background:${bg}`,
+      `color:${fg}`,
+      'font:600 13px/1.4 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif',
+      'padding:10px 18px',
+      'border-radius:999px',
+      'box-shadow:0 10px 30px rgba(0,0,0,0.35)',
+      'pointer-events:none',
+      'z-index:2147483647',
+      'max-width:70vw',
+      'text-align:center'
+    ].join(';')
+    t.textContent = msg
+    host.appendChild(t)
+    setTimeout(() => t.remove(), kind === 'err' ? 4200 : 2400)
+  }
+
+  function start(opts) {
+    if (state) stop()
+    const host = ensureHost()
+
+    const box = document.createElement('div')
+    host.appendChild(box)
+
+    const bar = document.createElement('div')
+    bar.style.cssText = [
+      'position:fixed',
+      'left:50%',
+      'top:18px',
+      'transform:translateX(-50%)',
+      'background:rgba(18,22,30,0.96)',
+      'color:#e7ecf5',
+      'font:500 13px/1.5 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif',
+      'padding:10px 16px',
+      'border-radius:12px',
+      'border:1px solid rgba(108,140,255,0.5)',
+      'box-shadow:0 12px 40px rgba(0,0,0,0.5)',
+      'display:flex',
+      'align-items:center',
+      'gap:10px',
+      'pointer-events:none',
+      'z-index:2147483647',
+      'white-space:nowrap'
+    ].join(';')
+
+    const dot = document.createElement('span')
+    dot.style.cssText =
+      'width:8px;height:8px;border-radius:3px;background:linear-gradient(135deg,#6c8cff,#9d7cff);display:inline-block'
+    const txt = document.createElement('span')
+    const sel = (opts.selection || '').trim()
+    txt.textContent = sel
+      ? `点击要采集的图片（已捕获 ${sel.length} 字提示词）· Esc 取消`
+      : '点击要采集的图片/视频 · Esc 取消'
+    const kbd = document.createElement('span')
+    kbd.textContent = 'Esc'
+    kbd.style.cssText =
+      'font:600 10px/1 ui-monospace,monospace;padding:3px 6px;border-radius:5px;background:rgba(255,255,255,0.12);color:#9aa4b5'
+
+    bar.appendChild(dot)
+    bar.appendChild(txt)
+    bar.appendChild(kbd)
+    host.appendChild(bar)
+
+    state = { ...opts, box, bar, host }
+    document.documentElement.style.cursor = 'crosshair'
+
+    window.addEventListener('mousemove', onMove, true)
+    window.addEventListener('click', onClick, true)
+    window.addEventListener('contextmenu', onContext, true)
+    window.addEventListener('keydown', onKey, true)
+  }
+
+  function stop() {
+    if (!state) return
+    window.removeEventListener('mousemove', onMove, true)
+    window.removeEventListener('click', onClick, true)
+    window.removeEventListener('contextmenu', onContext, true)
+    window.removeEventListener('keydown', onKey, true)
+    document.documentElement.style.cursor = ''
+    removeUi()
+    state = null
+  }
+
+  function onMove(e) {
+    if (!state) return
+    const el = document.elementFromPoint(e.clientX, e.clientY)
+    // 忽略我们自己的浮层
+    if (el && el.closest && el.closest('#' + HOST_ID)) return
+    const target = resolveTarget(el)
+    if (target) {
+      showBox(target.getBoundingClientRect())
+    } else if (state) {
+      state.box.style.cssText = 'position:fixed;display:none'
+    }
+  }
+
+  function onContext(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    stop()
+    toast('已取消采集', 'err')
+  }
+
+  function onKey(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      stop()
+    }
+  }
+
+  async function onClick(e) {
+    if (!state) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.stopImmediatePropagation()
+
+    const el = document.elementFromPoint(e.clientX, e.clientY)
+    if (el && el.closest && el.closest('#' + HOST_ID)) return
+
+    const target = resolveTarget(el)
+    const url = urlOf(target)
+    const ctx = state
+
+    if (!url) {
+      toast('这个位置没找到图片，换个位置点一下', 'err')
+      return
+    }
+
+    stop()
+
+    const payload = {
+      imageUrl: url.startsWith('data:') ? undefined : url,
+      dataUrl: url.startsWith('data:') ? url : undefined,
+      pageUrl: ctx.pageUrl || location.href,
+      pageTitle: ctx.pageTitle || document.title,
+      promptText: (ctx.selection || '').trim() || guessPrompt(),
+      negativeText: '',
+      platform: ctx.platform || '网页采集'
+    }
+
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'PP_CAPTURE', payload })
+      if (res && res.ok) {
+        toast('已收进 PromptPair 素材库 ✓', 'ok')
+      } else {
+        toast((res && res.message) || '发送失败', 'err')
+      }
+    } catch (err) {
+      toast('无法连接 PromptPair：' + err.message, 'err')
+    }
+  }
+
+  /* 接收后台指令 */
+  if (!window.__ppListenerInstalled) {
+    window.__ppListenerInstalled = true
+    chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+      if (msg && msg.type === 'PP_START_PICK') {
+        start(msg)
+        sendResponse({ ok: true })
+      }
+      return false
+    })
+  }
+})()

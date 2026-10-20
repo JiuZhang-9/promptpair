@@ -1,0 +1,36 @@
+# 统一换行：仓库内一律 LF，Windows 检出时由 Git 自动处理 .bat/.ps1
+* text=auto eol=lf
+
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.js   text eol=lf
+*.mjs  text eol=lf
+*.cjs  text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.md   text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+*.nsh  text eol=crlf
+
+# 二进制
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.ico  binary
+*.gif  binary
+*.mp4  binary
+*.exe  binary
+*.dll  binary
+*.node binary
+*.promptpack binary
+
+# 让 GitHub 语言统计正确
+out/**     linguist-vendored
+release/** linguist-vendored

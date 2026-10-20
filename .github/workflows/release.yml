@@ -1,0 +1,84 @@
+name: Release
+
+# 发布规则（详见 docs/发布规范.md）：
+#   1. 改动以 Conventional Commits 提交
+#   2. npm version patch|minor|major  → 生成提交 + vX.Y.Z tag
+#   3. git push --follow-tags        → 触发本工作流
+#   4. 构建产物与 latest.yml 自动发到 GitHub Releases，客户端据此自动更新
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '手动发布：填版本号（如 1.0.1），仅用于补发'
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-windows:
+    name: Build & Publish (Windows x64)
+    runs-on: windows-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Generate icon
+        run: npm run icon
+
+      - name: Build bundles
+        run: npm run build
+
+      - name: Package & publish to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 中国大陆 runner 拉取 Electron 二进制较慢时启用镜像
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+        run: npx electron-builder --win --x64 --publish always
+
+      - name: Upload artifacts (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: promptpair-windows-x64
+          path: |
+            release/*.exe
+            release/*.blockmap
+            release/latest.yml
+          if-no-files-found: ignore
+          retention-days: 14
+
+  notify:
+    name: Summarize
+    needs: build-windows
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Result
+        run: |
+          echo "构建结果: ${{ needs.build-windows.result }}"
+          echo "发布页: https://github.com/${{ github.repository }}/releases"

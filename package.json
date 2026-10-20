@@ -1,0 +1,49 @@
+{
+  "name": "promptpair",
+  "productName": "PromptPair",
+  "version": "0.1.0",
+  "description": "PromptPair - 把提示词与它产出的图片/视频配成一对，本地管理、打标分类、打包分享",
+  "author": {
+    "name": "PromptPair"
+  },
+  "license": "MIT",
+  "private": true,
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "build": "electron-vite build",
+    "icon": "node scripts/make-icon.mjs",
+    "dist": "npm run icon && npm run build && electron-builder --win --x64",
+    "dist:dir": "npm run icon && npm run build && electron-builder --win --x64 --dir"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9",
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "zustand": "^5.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JiuZhang-9/promptpair.git"
+  },
+  "homepage": "https://github.com/JiuZhang-9/promptpair",
+  "bugs": {
+    "url": "https://github.com/JiuZhang-9/promptpair/issues"
+  }
+}
