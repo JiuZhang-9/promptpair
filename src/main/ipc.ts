@@ -21,6 +21,7 @@ import { scanDuplicates } from './duplicates'
 import { addFileToLibrary, repairAsset, hammingHex } from './media'
 import { startCaptureServer, getCapturePort } from './capture'
 import { checkForUpdatesManually, getUpdateStatus, quitAndInstall } from './updater'
+import { APP_VERSION } from './version'
 
 export interface AppCtx {
   win: BrowserWindow | null
@@ -49,7 +50,7 @@ function snapshot(ctx: AppCtx): { data: LibraryData; root: string; config: AppCo
     data: ctx.lib.data,
     root: ctx.lib.root,
     config: ctx.cfg.data,
-    version: app.getVersion(),
+    version: APP_VERSION,
     capturePort: getCapturePort()
   }
 }
@@ -107,7 +108,7 @@ export function registerIpc(ctx: AppCtx): void {
   /* ───────────── 基础 ───────────── */
 
   ipcMain.handle('app:info', () => ({
-    version: app.getVersion(),
+    version: APP_VERSION,
     electron: process.versions.electron,
     chrome: process.versions.chrome,
     node: process.versions.node,
@@ -390,7 +391,7 @@ export function registerIpc(ctx: AppCtx): void {
       includeMedia: opts.includeMedia
     }
 
-    const r = await exportPack(ctx.lib, exportOpts, { appVersion: app.getVersion() }, (p) => {
+    const r = await exportPack(ctx.lib, exportOpts, { appVersion: APP_VERSION }, (p) => {
       send(ctx, 'pack:progress', p)
     })
     send(ctx, 'pack:done', r)

@@ -2,6 +2,7 @@ import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
+import { APP_VERSION } from './version'
 
 /**
  * 浏览器插件采集接收端。
@@ -65,7 +66,7 @@ async function tryListen(port: number, handler: CaptureHandler): Promise<http.Se
     // 探活：插件用它确认端口
     if (url.pathname === '/ping') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: true, app: 'PromptPair', version: app.getVersion() }))
+      res.end(JSON.stringify({ ok: true, app: 'PromptPair', version: APP_VERSION }))
       return
     }
 
