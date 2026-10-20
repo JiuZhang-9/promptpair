@@ -8,6 +8,22 @@
   <img src="build/icon.png" width="96" alt="PromptPair">
 </p>
 
+<p align="center">
+  <a href="https://github.com/JiuZhang-9/promptpair/releases/latest">
+    <img src="https://img.shields.io/github/v/release/JiuZhang-9/promptpair?label=%E4%B8%8B%E8%BD%BD&style=for-the-badge" alt="下载最新版">
+  </a>
+  <img src="https://img.shields.io/github/actions/workflow/status/JiuZhang-9/promptpair/ci.yml?label=CI" alt="CI">
+  <img src="https://img.shields.io/badge/platform-Windows%20x64-6c8cff" alt="Platform">
+  <img src="https://img.shields.io/badge/license-MIT-4fd1a5" alt="License">
+</p>
+
+## 下载安装
+
+**[⇩ 点这里下载最新版 PromptPair-Setup.exe](https://github.com/JiuZhang-9/promptpair/releases/latest)**
+
+安装时 Windows 会提示「未知发布者」（因为没买代码签名证书），点 **更多信息 → 仍要运行** 即可。
+装好之后，以后有新版本会**自动提示升级**，不用再来这里下载。
+
 ---
 
 ## 为什么是"配对"而不是"图库"
