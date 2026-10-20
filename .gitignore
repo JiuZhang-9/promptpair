@@ -32,3 +32,6 @@ desktop.ini
 
 # 打包产出物（体积大，不进仓库）
 *.promptpack
+
+# 本地助手工作目录（项目记忆，不随仓库分发）
+.workbuddy/
