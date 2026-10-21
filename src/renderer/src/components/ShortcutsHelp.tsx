@@ -6,6 +6,9 @@ const SEPARATORS = new Set(['/', '+'])
 
 const ROWS: { keys: string[]; desc: string }[] = [
   { keys: ['Ctrl', '+', 'J', '/', 'Ctrl', '+', 'K', '/', '↑', '/', '↓'], desc: '上下移动焦点（不改变选中）' },
+  { keys: ['Ctrl', '+', 'B'], desc: '收起 / 展开左栏' },
+  { keys: ['Ctrl', '+', 'Shift', '+', 'B'], desc: '收起 / 展开右栏' },
+  { keys: ['Ctrl', '+', 'C'], desc: '复制焦点卡片的提示词' },
   { keys: ['Space'], desc: '切换当前项的选中' },
   { keys: ['1', '–', '5'], desc: '给选中的打 N 星' },
   { keys: ['F'], desc: '收藏 / 取消收藏' },
@@ -18,6 +21,8 @@ const ROWS: { keys: string[]; desc: string }[] = [
   { keys: ['Ctrl', '+', 'F'], desc: '定位到搜索框' },
   { keys: ['Ctrl', '+', 'N'], desc: '新建记录' },
   { keys: ['Delete'], desc: '删除选中的记录' },
+  { keys: ['空白拖拽'], desc: '框选卡片；按住 Ctrl 拖拽追加选中' },
+  { keys: ['空白单击'], desc: '取消选中并收起底部操作条' },
   { keys: ['Ctrl', '+', 'Enter'], desc: '在编辑窗口里保存' }
 ]
 

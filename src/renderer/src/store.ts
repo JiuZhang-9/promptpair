@@ -57,6 +57,8 @@ export interface StoreState {
   panel: PanelKind
   batchTagModal: BatchTagModal
   shortcutsOpen: boolean
+  sidebarCollapsed: boolean
+  rightPanelCollapsed: boolean
 
   /* 交互 */
   selectedIds: string[]
@@ -93,6 +95,10 @@ export interface StoreState {
   setPanel: (p: PanelKind) => void
   setBatchTagModal: (m: BatchTagModal) => void
   setShortcutsOpen: (v: boolean) => void
+  setSidebarCollapsed: (v: boolean) => void
+  setRightPanelCollapsed: (v: boolean) => void
+  toggleSidebar: () => void
+  toggleRightPanel: () => void
 
   select: (id: string | null, opts?: { additive?: boolean; range?: boolean }) => void
   selectMany: (ids: string[]) => void
@@ -146,6 +152,8 @@ const EMPTY_CFG: AppConfig = {
   autoReadSidecar: true,
   autoGroupByStem: true,
   minimizeToTray: false,
+  sidebarCollapsed: false,
+  rightPanelCollapsed: false,
   aiEnabled: false,
   aiBaseUrl: '',
   aiApiKey: '',
@@ -155,6 +163,8 @@ const EMPTY_CFG: AppConfig = {
 function uid(): string {
   return Math.random().toString(36).slice(2, 10)
 }
+
+let thumbPersistTimer: ReturnType<typeof setTimeout> | null = null
 
 export const useStore = create<StoreState>((set, get) => ({
   ready: false,
@@ -179,6 +189,8 @@ export const useStore = create<StoreState>((set, get) => ({
   panel: 'none',
   batchTagModal: 'none',
   shortcutsOpen: false,
+  sidebarCollapsed: false,
+  rightPanelCollapsed: false,
 
   selectedIds: [],
   anchorId: null,
@@ -203,7 +215,9 @@ export const useStore = create<StoreState>((set, get) => ({
         config: snap.config,
         version: snap.version,
         capturePort: snap.capturePort,
-        thumbSize: snap.config.thumbSize || 220
+        thumbSize: snap.config.thumbSize || 220,
+        sidebarCollapsed: snap.config.sidebarCollapsed ?? false,
+        rightPanelCollapsed: snap.config.rightPanelCollapsed ?? false
       })
 
       // 主题：跟随系统
@@ -254,6 +268,8 @@ export const useStore = create<StoreState>((set, get) => ({
       config: s.config,
       version: s.version,
       capturePort: s.capturePort,
+      sidebarCollapsed: s.config.sidebarCollapsed ?? st.sidebarCollapsed,
+      rightPanelCollapsed: s.config.rightPanelCollapsed ?? st.rightPanelCollapsed,
       // 清理已不存在的选中项
       selectedIds: st.selectedIds.filter((id) => s.data.entries.some((e) => e.id === id)),
       detailId: st.detailId && s.data.entries.some((e) => e.id === st.detailId) ? st.detailId : null
@@ -265,6 +281,9 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ config: cfg })
     if (patch.theme) applyTheme(cfg.theme, get().systemDark)
     if (typeof patch.thumbSize === 'number') set({ thumbSize: patch.thumbSize })
+    if (typeof patch.sidebarCollapsed === 'boolean') set({ sidebarCollapsed: patch.sidebarCollapsed })
+    if (typeof patch.rightPanelCollapsed === 'boolean')
+      set({ rightPanelCollapsed: patch.rightPanelCollapsed })
   },
 
   setQ: (v) => set({ q: v }),
@@ -281,8 +300,14 @@ export const useStore = create<StoreState>((set, get) => ({
   setPlatform: (p) => set({ platform: p }),
   setSort: (s) => set({ sort: s }),
   setThumbSize: (n) => {
-    set({ thumbSize: n })
-    void window.pp.patchConfig({ thumbSize: n })
+    const next = Math.max(120, Math.min(380, Math.round(n)))
+    set({ thumbSize: next })
+    // 连续 Ctrl+滚轮时不要每一格都写盘
+    if (thumbPersistTimer) clearTimeout(thumbPersistTimer)
+    thumbPersistTimer = setTimeout(() => {
+      thumbPersistTimer = null
+      void window.pp.patchConfig({ thumbSize: next })
+    }, 220)
   },
   resetFilters: () =>
     set({
@@ -294,9 +319,43 @@ export const useStore = create<StoreState>((set, get) => ({
       kind: 'all',
       platform: null
     }),
-  setPanel: (p) => set({ panel: p }),
+  setPanel: (p) => {
+    if (p === 'settings' || p === 'none') {
+      set({ panel: p })
+      return
+    }
+    const wasCollapsed = get().rightPanelCollapsed
+    set({ panel: p, detailId: null, rightPanelCollapsed: false })
+    if (wasCollapsed) void window.pp.patchConfig({ rightPanelCollapsed: false })
+  },
   setBatchTagModal: (m) => set({ batchTagModal: m }),
   setShortcutsOpen: (v) => set({ shortcutsOpen: v }),
+  setSidebarCollapsed: (v) => {
+    set({ sidebarCollapsed: v })
+    void window.pp.patchConfig({ sidebarCollapsed: v })
+  },
+  setRightPanelCollapsed: (v) => {
+    set({ rightPanelCollapsed: v })
+    void window.pp.patchConfig({ rightPanelCollapsed: v })
+  },
+  toggleSidebar: () => get().setSidebarCollapsed(!get().sidebarCollapsed),
+  toggleRightPanel: () => {
+    const s = get()
+    const hasRight = !!s.detailId || s.panel === 'dups' || s.panel === 'tags'
+    if (hasRight) {
+      get().setRightPanelCollapsed(!s.rightPanelCollapsed)
+      return
+    }
+    // 右栏没内容：直接打开当前焦点/选中项的详情
+    const list = selectEntries(s)
+    const id = s.focusIndex != null ? list[s.focusIndex]?.id : s.selectedIds[0]
+    if (id) {
+      set({ detailId: id, panel: 'none', rightPanelCollapsed: false })
+      if (s.rightPanelCollapsed) void window.pp.patchConfig({ rightPanelCollapsed: false })
+    } else {
+      s.toast('先选中一条记录，再展开右栏', 'info')
+    }
+  },
 
   select: (id, opts) => {
     const { selectedIds } = get()
@@ -363,7 +422,15 @@ export const useStore = create<StoreState>((set, get) => ({
     const ids = selectEntries(get()).map((e) => e.id)
     set({ selectedIds: ids, anchorId: ids[0] ?? null })
   },
-  openDetail: (id) => set({ detailId: id }),
+  openDetail: (id) => {
+    if (!id) {
+      set({ detailId: null })
+      return
+    }
+    const wasCollapsed = get().rightPanelCollapsed
+    set({ detailId: id, panel: 'none', rightPanelCollapsed: false })
+    if (wasCollapsed) void window.pp.patchConfig({ rightPanelCollapsed: false })
+  },
 
   startCreate: (assetIds) =>
     set({

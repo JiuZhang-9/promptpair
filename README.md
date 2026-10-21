@@ -53,6 +53,8 @@
 | 打标效率 | 多选批量加/移标签、批量评分、批量归入集合 |
 | 标签治理 | 按使用数排序，批量重命名 / 合并 / 删除；自动提示近似重复标签 |
 | 快捷键 | `Ctrl+J`/`Ctrl+K` 移动焦点、`Space` 选中、`1`–`5` 评分、`?` 查看全部，不看鼠标走完打标流程 |
+| 布局 | 设置改为居中弹窗；左右栏可收起（`Ctrl+B` / `Ctrl+Shift+B`），状态记住 |
+| 卡片操作 | 悬停或 `Ctrl+C` 复制提示词；`Ctrl+滚轮` 缩放；空白拖拽框选；点空白取消选中 |
 | AI 打标（可选） | 接入任意 OpenAI 兼容接口，候选标签确认后才写入；不填 Key 时完全离线 |
 | 分享 | 导出 `.promptpack`，内含数据 + 媒体 + **自带浏览页**，双击即看 |
 | 自动更新 | GitHub Releases + electron-updater，静默检查、一键重启 |
@@ -89,6 +91,7 @@ env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-pack.cjs     # 分享包
 env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-tags.cjs     # 标签治理
 env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-ai.cjs       # AI 全链路（本地 mock）
 env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-keys.cjs     # 键盘与面板
+env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-ui.cjs       # 布局、复制、缩放、框选
 ```
 
 > **产物目录只有一个：`release/`。**
@@ -160,9 +163,11 @@ Electron 33 · React 18 · TypeScript · Vite (electron-vite) · Zustand · ffla
 | 0.2.1 | 修复：自动更新报错 | ✅ |
 | 0.3.0 | 打得快：标签治理、快捷键、AI 辅助打标 | ✅ 已并入 0.3.1 |
 | 0.3.1 | 补丁：Ctrl 快捷键、帮助入口、窗口显示修复 | ✅ 已发布 |
-| 0.4.0 | 视频：库内播放与封面 | 待排 |
-| 0.5.0 | 找得到：保存视图、相似图搜索 | 待排 |
-| 0.6.0 | 带得走：静态站点、增量分享包 | 待排 |
+| 0.4.0 | 顺手：设置弹窗、左右栏收起、快捷复制、缩放、框选 | 🚧 本次发布 |
+| 0.5.0 | 分享：单页 HTML、模型显示 | 待排 |
+| 0.6.0 | 视频：库内播放与封面 | 待排 |
+| 0.7.0 | 找得到：保存视图、相似图搜索 | 待排 |
+| 0.8.0 | 带得走：静态站点、增量分享包 | 待排 |
 | 1.0.0 | 敢托付：迁移保障、性能基线 | 远期 |
 
 完整清单（含每项的**验收标准**与"明确不做"的范围）见 **[docs/路线图.md](docs/路线图.md)**。

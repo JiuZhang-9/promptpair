@@ -67,6 +67,10 @@ export default function TopBar(): React.ReactElement {
   const startCreate = useStore((s) => s.startCreate)
   const setPanel = useStore((s) => s.setPanel)
   const setShortcutsOpen = useStore((s) => s.setShortcutsOpen)
+  const sidebarCollapsed = useStore((s) => s.sidebarCollapsed)
+  const rightPanelCollapsed = useStore((s) => s.rightPanelCollapsed)
+  const toggleSidebar = useStore((s) => s.toggleSidebar)
+  const toggleRightPanel = useStore((s) => s.toggleRightPanel)
   const checkUpdate = useStore((s) => s.checkUpdate)
   const installUpdate = useStore((s) => s.installUpdate)
   const toast = useStore((s) => s.toast)
@@ -78,6 +82,7 @@ export default function TopBar(): React.ReactElement {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        if (document.querySelector('.overlay')) return
         e.preventDefault()
         searchRef.current?.focus()
       }
@@ -326,6 +331,24 @@ export default function TopBar(): React.ReactElement {
               </>
             )}
           </Dropdown>
+
+          <button
+            type="button"
+            className={'icon-btn' + (sidebarCollapsed ? ' on' : '')}
+            title={sidebarCollapsed ? '展开左栏 (Ctrl+B)' : '收起左栏 (Ctrl+B)'}
+            onClick={toggleSidebar}
+          >
+            <Icon name="panelLeft" size={16} />
+          </button>
+
+          <button
+            type="button"
+            className={'icon-btn' + (rightPanelCollapsed ? ' on' : '')}
+            title={rightPanelCollapsed ? '展开右栏 (Ctrl+Shift+B)' : '收起右栏 (Ctrl+Shift+B)'}
+            onClick={toggleRightPanel}
+          >
+            <Icon name="panelRight" size={16} />
+          </button>
 
           <button
             type="button"

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useStore } from '../store'
-import { Icon, Toggle } from './ui'
+import { Icon, Modal, Toggle } from './ui'
 
 function Row({
   label,
@@ -56,8 +56,6 @@ export default function SettingsPanel(): React.ReactElement {
     void window.pp.info().then((i) => setInfo(i as typeof info))
   }, [panel])
 
-  if (panel !== 'settings') return <></>
-
   const switchLibrary = async (): Promise<void> => {
     const dir = await window.pp.chooseLibraryRoot()
     if (!dir) return
@@ -73,7 +71,13 @@ export default function SettingsPanel(): React.ReactElement {
   }
 
   return (
-    <aside className="detail">
+    <Modal
+      open={panel === 'settings'}
+      onClose={() => setPanel('none')}
+      width={780}
+      className="settings-modal"
+      label="设置"
+    >
       <div className="detail-head">
         <div className="dh-text">
           <div className="dh-title">设置</div>
@@ -405,6 +409,6 @@ export default function SettingsPanel(): React.ReactElement {
           </div>
         </div>
       </div>
-    </aside>
+    </Modal>
   )
 }

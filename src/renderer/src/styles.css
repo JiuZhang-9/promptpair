@@ -773,6 +773,13 @@ input[type='range']:hover::-webkit-slider-thumb {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
+  transition: width 0.18s ease, border-color 0.18s ease;
+}
+
+.main.sidebar-collapsed .sidebar {
+  width: 0;
+  border-right-color: transparent;
 }
 
 .lib-card {
@@ -1205,6 +1212,15 @@ input[type='range']:hover::-webkit-slider-thumb {
   position: relative;
 }
 
+.marquee {
+  position: absolute;
+  z-index: 20;
+  border: 1px solid var(--fg-3);
+  background: var(--hl);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
 .vgrid {
   position: relative;
   width: 100%;
@@ -1541,6 +1557,50 @@ input[type='range']:hover::-webkit-slider-thumb {
   animation: slideIn 0.15s ease-out;
 }
 
+/* 右栏容器：用宽度过渡收起/展开，面板保持挂载，内部状态不丢 */
+.right-dock {
+  width: 0;
+  flex: none;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid transparent;
+  transition: width 0.18s ease, border-color 0.18s ease;
+}
+
+.right-dock.open {
+  width: 410px;
+  border-left-color: var(--line);
+}
+
+.right-dock.open.collapsed {
+  width: 0;
+  border-left-color: transparent;
+}
+
+.right-dock > .detail {
+  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  border-left: 0;
+  animation: none;
+}
+
+@media (max-width: 1180px) {
+  .right-dock.open {
+    width: 364px;
+  }
+}
+
+.settings-modal {
+  height: min(86vh, 900px);
+}
+
+.settings-modal .detail-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -1739,6 +1799,12 @@ input[type='range']:hover::-webkit-slider-thumb {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 7px;
+}
+
+.sect-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .sect-head h4 {

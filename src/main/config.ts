@@ -12,6 +12,8 @@ const DEFAULTS: Omit<AppConfig, 'libraryPath'> = {
   autoReadSidecar: true,
   autoGroupByStem: true,
   minimizeToTray: false,
+  sidebarCollapsed: false,
+  rightPanelCollapsed: false,
   aiEnabled: false,
   aiBaseUrl: 'https://api.openai.com/v1',
   aiApiKey: '',

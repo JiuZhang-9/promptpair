@@ -10,7 +10,7 @@ import DupPanel from './components/DupPanel'
 import TagManager from './components/TagManager'
 import SettingsPanel from './components/SettingsPanel'
 import ShortcutsHelp from './components/ShortcutsHelp'
-import { Icon } from './components/ui'
+import { Icon, copyText } from './components/ui'
 
 function Toasts(): React.ReactElement {
   const toasts = useStore((s) => s.toasts)
@@ -79,6 +79,11 @@ export default function App(): React.ReactElement {
   const patchEntries = useStore((s) => s.patchEntries)
   const exportPack = useStore((s) => s.exportPack)
   const toast = useStore((s) => s.toast)
+  const panel = useStore((s) => s.panel)
+  const sidebarCollapsed = useStore((s) => s.sidebarCollapsed)
+  const rightPanelCollapsed = useStore((s) => s.rightPanelCollapsed)
+  const toggleSidebar = useStore((s) => s.toggleSidebar)
+  const toggleRightPanel = useStore((s) => s.toggleRightPanel)
 
   useEffect(() => {
     void init()
@@ -90,6 +95,20 @@ export default function App(): React.ReactElement {
       const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
       if (typing) return
 
+      const mod = e.ctrlKey || e.metaKey
+
+      // 布局开关在弹窗打开时也生效，方便随时收起/展开
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault()
+        toggleRightPanel()
+        return
+      }
+      if (mod && e.key.toLowerCase() === 'b') {
+        e.preventDefault()
+        toggleSidebar()
+        return
+      }
+
       // 帮助浮层：只处理 Esc，避免底层快捷键穿透
       if (shortcutsOpen) {
         if (e.key === 'Escape') {
@@ -100,7 +119,7 @@ export default function App(): React.ReactElement {
       }
       // 编辑器和批量标签弹层有自己的键位，不抢
       if (editorOpen || batchTagModal !== 'none') return
-      // 任何浮层（编辑器 / 批量标签 / AI / 合并）打开时，不让底层快捷键穿透
+      // 任何浮层（编辑器 / 批量标签 / AI / 合并 / 设置）打开时，不让底层快捷键穿透
       if (document.querySelector('.overlay')) return
 
       if (e.key === 'Escape') {
@@ -109,7 +128,21 @@ export default function App(): React.ReactElement {
         return
       }
 
-      const mod = e.ctrlKey || e.metaKey
+      if (mod && e.key.toLowerCase() === 'c') {
+        const state = useStore.getState()
+        const list = selectEntries(state)
+        const target =
+          state.focusIndex != null
+            ? list[state.focusIndex]
+            : list.find((x) => x.id === state.selectedIds[0])
+        if (target?.positive) {
+          e.preventDefault()
+          void copyText(target.positive)
+            .then(() => toast('已复制提示词', 'ok'))
+            .catch(() => toast('复制失败，请手动选中文本', 'err'))
+        }
+        return
+      }
 
       if (mod && e.shiftKey && e.key.toLowerCase() === 'e') {
         e.preventDefault()
@@ -212,7 +245,9 @@ export default function App(): React.ReactElement {
     selectAllFiltered,
     patchEntries,
     exportPack,
-    toast
+    toast,
+    toggleSidebar,
+    toggleRightPanel
   ])
 
   if (!ready) {
@@ -240,19 +275,29 @@ export default function App(): React.ReactElement {
     )
   }
 
+  const rightOpen = !!detailId || panel === 'dups' || panel === 'tags'
+
   return (
     <div className="app">
       <TopBar />
-      <div className="main">
+      <div className={'main' + (sidebarCollapsed ? ' sidebar-collapsed' : '')}>
         <Sidebar />
         <Gallery />
-        <DetailPanel />
-        <DupPanel />
-        <TagManager />
-        <SettingsPanel />
+        <div
+          className={
+            'right-dock' +
+            (rightOpen ? ' open' : '') +
+            (rightPanelCollapsed ? ' collapsed' : '')
+          }
+        >
+          <DetailPanel />
+          <DupPanel />
+          <TagManager />
+        </div>
       </div>
       <BatchBar />
       <EntryEditor />
+      <SettingsPanel />
       <ShortcutsHelp />
       <Toasts />
       <ImportOverlay />

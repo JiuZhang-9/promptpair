@@ -41,6 +41,7 @@ desktop.ini
 
 # 本地助手工作目录（项目记忆，不随仓库分发）
 .workbuddy/
+.zcode/
 
 # 本地打包目录（体积大，不进仓库）
 rel2/

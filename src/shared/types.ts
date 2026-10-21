@@ -147,6 +147,10 @@ export interface AppConfig {
   minimizeToTray: boolean
   /** 最后选中的集合（仅记忆，非业务数据） */
   lastCollectionId?: string
+  /** 左栏是否收起（仅 UI 偏好，存 userData，不进库） */
+  sidebarCollapsed?: boolean
+  /** 右栏是否收起（仅 UI 偏好，存 userData，不进库） */
+  rightPanelCollapsed?: boolean
 
   /* ── AI 辅助打标（可选）── */
   /** 总开关。关闭或没有 Key 时，相关入口整体隐藏 */

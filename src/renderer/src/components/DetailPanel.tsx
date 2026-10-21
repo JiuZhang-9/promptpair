@@ -30,6 +30,8 @@ export default function DetailPanel(): React.ReactElement | null {
     const onKey = (e: KeyboardEvent): void => {
       const t = e.target as HTMLElement
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      // 有弹窗（设置 / AI / 合并）时，别让 Esc 同时关掉背后的详情
+      if (document.querySelector('.overlay')) return
       if (e.key === 'Escape') openDetail(null)
       if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
         setIdx((i) => (i + 1) % Math.max(1, entry.assetIds.length))
@@ -67,6 +69,15 @@ export default function DetailPanel(): React.ReactElement | null {
   if (entry.params?.sampler) paramRows.push(['采样器', entry.params.sampler])
   if (entry.params?.reference) paramRows.push(['参考图', entry.params.reference])
   for (const [k, v] of Object.entries(entry.params?.extra ?? {})) paramRows.push([k, String(v)])
+
+  const allText = (): string => {
+    const parts: string[] = []
+    if (entry.positive) parts.push(entry.positive)
+    if (entry.negative) parts.push('Negative: ' + entry.negative)
+    if (entry.note) parts.push('备注：' + entry.note)
+    if (paramRows.length) parts.push(paramRows.map(([k, v]) => `${k}: ${v}`).join('\n'))
+    return parts.join('\n\n')
+  }
 
   return (
     <aside className="detail">
@@ -188,15 +199,26 @@ export default function DetailPanel(): React.ReactElement | null {
           <div className="sect">
             <div className="sect-head">
               <h4>正向提示词</h4>
-              <button
-                type="button"
-                className={'copy-btn' + (copied === 'pos' ? ' done' : '')}
-                onClick={() => void copy(entry.positive, 'pos')}
-                disabled={!entry.positive}
-              >
-                <Icon name={copied === 'pos' ? 'check' : 'copy'} size={12} />
-                {copied === 'pos' ? '已复制' : '复制'}
-              </button>
+              <div className="sect-actions">
+                <button
+                  type="button"
+                  className={'copy-btn' + (copied === 'pos' ? ' done' : '')}
+                  onClick={() => void copy(entry.positive, 'pos')}
+                  disabled={!entry.positive}
+                >
+                  <Icon name={copied === 'pos' ? 'check' : 'copy'} size={12} />
+                  {copied === 'pos' ? '已复制' : '复制'}
+                </button>
+                <button
+                  type="button"
+                  className={'copy-btn' + (copied === 'all' ? ' done' : '')}
+                  onClick={() => void copy(allText(), 'all')}
+                  title="复制正向、负向、备注和生成参数"
+                >
+                  <Icon name={copied === 'all' ? 'check' : 'copy'} size={12} />
+                  {copied === 'all' ? '已复制' : '复制全部'}
+                </button>
+              </div>
             </div>
             <div
               className={'pbox' + (entry.positive ? '' : ' placeholder')}

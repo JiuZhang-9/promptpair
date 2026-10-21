@@ -34,6 +34,8 @@ const PATHS: Record<string, string> = {
   alert: 'M12 3l9 16H3l9-16Zm0 6v4m0 3h.01',
   info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-13h.01M12 11v6',
   help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-2.9-12a3 3 0 1 1 5.4 1.7c-.8.8-2.5 1.3-2.5 3.3M12 17h.01',
+  panelLeft: 'M4 4h16v16H4zM9 4v16',
+  panelRight: 'M4 4h16v16H4zM15 4v16',
   eye: 'M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6Zm10 2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
   filter: 'M3 5h18l-7 8v6l-4 2v-8L3 5Z',
   swap: 'M7 8h10l-3-3m3 11H7l3 3',
@@ -274,9 +276,31 @@ export function Toggle({
   )
 }
 
-export function copyText(text: string): Promise<void> {
-  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text)
-  return Promise.reject(new Error('剪贴板不可用'))
+export async function copyText(text: string): Promise<void> {
+  if (!text) throw new Error('没有可复制的内容')
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return
+    }
+  } catch {
+    // file:// 等场景可能拒绝异步剪贴板，继续走 execCommand 回退
+  }
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.setAttribute('readonly', '')
+  ta.style.position = 'fixed'
+  ta.style.top = '-1000px'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.select()
+  let ok = false
+  try {
+    ok = document.execCommand('copy')
+  } finally {
+    document.body.removeChild(ta)
+  }
+  if (!ok) throw new Error('剪贴板不可用')
 }
 
 export function formatBytes(n: number): string {
