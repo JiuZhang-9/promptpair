@@ -11,7 +11,11 @@ const DEFAULTS: Omit<AppConfig, 'libraryPath'> = {
   autoCreateTags: true,
   autoReadSidecar: true,
   autoGroupByStem: true,
-  minimizeToTray: false
+  minimizeToTray: false,
+  aiEnabled: false,
+  aiBaseUrl: 'https://api.openai.com/v1',
+  aiApiKey: '',
+  aiModel: 'gpt-4o-mini'
 }
 
 export function defaultLibraryPath(): string {

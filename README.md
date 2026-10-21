@@ -51,6 +51,9 @@
 | 连号合并 | `xxx_1.png` `xxx_2.png` 自动合成一条记录 |
 | 去重 | 内容哈希去重（精确）+ 感知哈希检测（近似），可一键清理 |
 | 打标效率 | 多选批量加/移标签、批量评分、批量归入集合 |
+| 标签治理 | 按使用数排序，批量重命名 / 合并 / 删除；自动提示近似重复标签 |
+| 快捷键 | `Ctrl+J`/`Ctrl+K` 移动焦点、`Space` 选中、`1`–`5` 评分、`?` 查看全部，不看鼠标走完打标流程 |
+| AI 打标（可选） | 接入任意 OpenAI 兼容接口，候选标签确认后才写入；不填 Key 时完全离线 |
 | 分享 | 导出 `.promptpack`，内含数据 + 媒体 + **自带浏览页**，双击即看 |
 | 自动更新 | GitHub Releases + electron-updater，静默检查、一键重启 |
 
@@ -77,6 +80,17 @@ npm run dist         # 生成 Windows 安装包到 release/
 npm run clean        # 清空构建产物（构建失败时先跑它）
 ```
 
+### 验收脚本
+
+```bash
+# 如果环境里设置了 ELECTRON_RUN_AS_NODE，先去掉它
+env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-import.cjs   # 导入管线
+env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-pack.cjs     # 分享包端到端
+env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-tags.cjs     # 标签治理
+env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-ai.cjs       # AI 全链路（本地 mock）
+env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-keys.cjs     # 键盘与面板
+```
+
 > **产物目录只有一个：`release/`。**
 > 构建报「文件被占用」时，先 `npm run clean` 再重来，
 > **不要**用 `--config.directories.output=xxx` 换个目录绕过去 —— 那正是仓库里一度出现
@@ -101,6 +115,7 @@ src/
 │  ├─ exporter.ts   .promptpack 打包 / 解包 / 合并
 │  ├─ preview.ts    分享包自带的静态浏览页
 │  ├─ duplicates.ts 近似重复检测（dHash + 并查集）
+│  ├─ ai.ts        AI 辅助打标（OpenAI 兼容接口）
 │  ├─ capture.ts    浏览器采集的本地接收端（127.0.0.1）
 │  ├─ updater.ts    自动更新
 │  └─ config.ts     应用配置（存 userData，不进库）
@@ -142,9 +157,12 @@ Electron 33 · React 18 · TypeScript · Vite (electron-vite) · Zustand · ffla
 | --- | --- | --- |
 | 0.1.0 | 能用：配对 / 录入 / 打标 / 分享 / 自动更新 | ✅ |
 | 0.2.0 | 专业：黑白灰设计体系 | ✅ |
-| 0.3.0 | 打得快：AI 辅助打标、标签治理、快捷键 | 下一站 |
+| 0.2.1 | 修复：自动更新报错 | ✅ |
+| 0.3.0 | 打得快：标签治理、快捷键、AI 辅助打标 | 🚧 本地包已出 |
+| 0.3.1 | 补丁：Ctrl 快捷键、帮助入口、窗口显示修复 | 🚧 本地包已出，待发布 |
 | 0.4.0 | 视频：库内播放与封面 | 待排 |
 | 0.5.0 | 找得到：保存视图、相似图搜索 | 待排 |
+| 0.6.0 | 带得走：静态站点、增量分享包 | 待排 |
 | 1.0.0 | 敢托付：迁移保障、性能基线 | 远期 |
 
 完整清单（含每项的**验收标准**与"明确不做"的范围）见 **[docs/路线图.md](docs/路线图.md)**。

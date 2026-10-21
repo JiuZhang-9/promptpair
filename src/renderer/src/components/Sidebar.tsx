@@ -61,6 +61,7 @@ export default function Sidebar(): React.ReactElement {
   const setKind = useStore((s) => s.setKind)
   const setPlatform = useStore((s) => s.setPlatform)
   const setPanel = useStore((s) => s.setPanel)
+  const setShortcutsOpen = useStore((s) => s.setShortcutsOpen)
   const resetFilters = useStore((s) => s.resetFilters)
   const toast = useStore((s) => s.toast)
   const refresh = useStore((s) => s.refresh)
@@ -332,11 +333,16 @@ export default function Sidebar(): React.ReactElement {
         <Section
           title="标签"
           action={
-            tagIds.length > 0 ? (
-              <button type="button" className="link-btn" onClick={clearTags}>
-                清空
+            <div className="sb-head-actions">
+              <button type="button" className="link-btn" onClick={() => setPanel('tags')}>
+                管理
               </button>
-            ) : undefined
+              {tagIds.length > 0 && (
+                <button type="button" className="link-btn" onClick={clearTags}>
+                  清空
+                </button>
+              )}
+            </div>
           }
         >
           {data.tags.length === 0 && (
@@ -396,13 +402,42 @@ export default function Sidebar(): React.ReactElement {
                         onContextMenu={async (e) => {
                           e.preventDefault()
                           const act = window.prompt(
-                            `标签「${t.name}」\n\n输入新名字可重命名；输入 - 删除该标签；直接回车取消。`,
+                            `标签「${t.name}」\n\n` +
+                              `输入新名字 = 重命名\n` +
+                              `输入 - = 删除\n` +
+                              `输入 = 目标标签名 = 合并到目标标签\n` +
+                              `直接回车取消。`,
                             t.name
                           )
                           if (act === null || act === t.name) return
+
                           if (act === '-') {
                             if (!window.confirm(`删除标签「${t.name}」？所有记录上的该标签都会被移除。`)) return
                             await window.pp.deleteTag(t.id)
+                          } else if (act.startsWith('=')) {
+                            const targetName = act.slice(1).trim()
+                            if (!targetName) return
+                            const target = data.tags.find(
+                              (x) => x.name.trim().toLowerCase() === targetName.toLowerCase()
+                            )
+                            if (!target) {
+                              toast(`没有找到标签「${targetName}」`, 'err')
+                              return
+                            }
+                            if (target.id === t.id) return
+                            const affected = data.entries.filter((x) => x.tagIds.includes(t.id)).length
+                            if (
+                              !window.confirm(
+                                `把「${t.name}」合并到「${target.name}」？\n\n会影响 ${affected} 条记录，合并后「${t.name}」会被删除。`
+                              )
+                            )
+                              return
+                            try {
+                              await window.pp.mergeTags([t.id], target.id)
+                            } catch (err) {
+                              toast((err as Error).message, 'err')
+                              return
+                            }
                           } else if (act.trim()) {
                             try {
                               await window.pp.updateTag(t.id, { name: act.trim() })
@@ -425,6 +460,18 @@ export default function Sidebar(): React.ReactElement {
         </Section>
 
         <Section title="工具" collapsible defaultOpen>
+          <button type="button" className="nav-item" onClick={() => setShortcutsOpen(true)}>
+            <Icon name="help" size={14} />
+            <span className="nav-label">快捷键帮助</span>
+          </button>
+          <button
+            type="button"
+            className={'nav-item' + (panel === 'tags' ? ' on' : '')}
+            onClick={() => setPanel(panel === 'tags' ? 'none' : 'tags')}
+          >
+            <Icon name="tag" size={14} />
+            <span className="nav-label">标签管理</span>
+          </button>
           <button
             type="button"
             className={'nav-item' + (panel === 'dups' ? ' on' : '')}

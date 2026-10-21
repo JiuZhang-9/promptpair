@@ -14,6 +14,7 @@ function Card({
   assets,
   tagInfo,
   selected,
+  focused,
   onSelect,
   onOpenDetail,
   onEdit
@@ -23,6 +24,7 @@ function Card({
   assets: Map<string, Asset>
   tagInfo: Map<string, { name: string; color: string }>
   selected: boolean
+  focused: boolean
   onSelect: (e: React.MouseEvent) => void
   onOpenDetail: () => void
   onEdit: () => void
@@ -33,7 +35,7 @@ function Card({
 
   return (
     <div
-      className={'card' + (selected ? ' sel' : '')}
+      className={'card' + (selected ? ' sel' : '') + (focused ? ' focused' : '')}
       style={{ width }}
       onClick={onSelect}
       onDoubleClick={(e) => {
@@ -132,6 +134,8 @@ export default function Gallery(): React.ReactElement {
   const data = useStore((s) => s.data)
   const thumbSize = useStore((s) => s.thumbSize)
   const selectedIds = useStore((s) => s.selectedIds)
+  const focusIndex = useStore((s) => s.focusIndex)
+  const setFocusIndex = useStore((s) => s.setFocusIndex)
   const q = useStore((s) => s.q)
   const resetFilters = useStore((s) => s.resetFilters)
   const select = useStore((s) => s.select)
@@ -196,6 +200,27 @@ export default function Gallery(): React.ReactElement {
     if (scrollRef.current) scrollRef.current.scrollTop = 0
     setScrollTop(0)
   }, [q, entries.length])
+
+  // 键盘焦点移动时，把目标行滚进视野
+  useEffect(() => {
+    if (focusIndex == null) return
+    const el = scrollRef.current
+    if (!el) return
+    const row = Math.floor(focusIndex / cols)
+    const top = PAD + row * rowH
+    const bottom = top + rowH
+    if (top < el.scrollTop + PAD) el.scrollTop = Math.max(0, top - PAD)
+    else if (bottom > el.scrollTop + el.clientHeight) {
+      el.scrollTop = bottom - el.clientHeight + PAD
+    }
+  }, [focusIndex, cols, rowH])
+
+  // 筛选结果变短后，把越界的焦点收回来
+  useEffect(() => {
+    if (focusIndex != null && focusIndex >= entries.length) {
+      setFocusIndex(entries.length ? entries.length - 1 : null)
+    }
+  }, [focusIndex, entries.length, setFocusIndex])
 
   const handleDrop = async (e: React.DragEvent): Promise<void> => {
     e.preventDefault()
@@ -275,7 +300,9 @@ export default function Gallery(): React.ReactElement {
                   className="vrow"
                   style={{ top: PAD + row * rowH, left: PAD, gap: GAP }}
                 >
-                  {rowItems.map((entry) => (
+                  {rowItems.map((entry, ci) => {
+                    const index = from + ri * cols + ci
+                    return (
                     <Card
                       key={entry.id}
                       entry={entry}
@@ -283,7 +310,9 @@ export default function Gallery(): React.ReactElement {
                       assets={assets}
                       tagInfo={tagInfo}
                       selected={selectedIds.includes(entry.id)}
+                      focused={focusIndex === index}
                       onSelect={(e) => {
+                        setFocusIndex(index)
                         const additive = e.ctrlKey || e.metaKey
                         const range = e.shiftKey
                         if (range || additive) {
@@ -294,12 +323,14 @@ export default function Gallery(): React.ReactElement {
                         }
                       }}
                       onOpenDetail={() => {
+                        setFocusIndex(index)
                         select(entry.id)
                         openDetail(entry.id)
                       }}
                       onEdit={() => startEdit(entry.id)}
                     />
-                  ))}
+                    )
+                  })}
                 </div>
               )
             })}

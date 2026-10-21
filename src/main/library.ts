@@ -8,6 +8,8 @@ import type {
   PromptEntry,
   Tag,
   TagGroup,
+  TagCandidateAssignment,
+  TagMergeResult,
   EntryDraft,
   BatchPatch
 } from '../shared/types'
@@ -403,10 +405,97 @@ export class Library {
     return t
   }
 
-  deleteTag(id: string): void {
-    this.data.tags = this.data.tags.filter((t) => t.id !== id)
-    for (const e of this.data.entries) e.tagIds = e.tagIds.filter((t) => t !== id)
+  /** 批量删除标签（会从所有记录上摘掉引用） */
+  deleteTags(ids: string[]): number {
+    const set = new Set(ids)
+    if (!set.size) return 0
+    const before = this.data.tags.length
+    this.data.tags = this.data.tags.filter((t) => !set.has(t.id))
+    const now = nowIso()
+    for (const e of this.data.entries) {
+      if (!e.tagIds.some((id) => set.has(id))) continue
+      e.tagIds = e.tagIds.filter((id) => !set.has(id))
+      e.updatedAt = now
+    }
     this.touch()
+    return before - this.data.tags.length
+  }
+
+  deleteTag(id: string): void {
+    this.deleteTags([id])
+  }
+
+  /**
+   * 把 fromIds 里的标签全部合并到 toId：替换条目引用、去重，再删除来源标签。
+   * 这是标签治理的核心操作，也用于清理 AI 打标产生的同义标签。
+   */
+  mergeTags(fromIds: string[], toId: string): TagMergeResult {
+    const target = this.data.tags.find((t) => t.id === toId)
+    if (!target) throw new Error('目标标签不存在')
+    const from = new Set(fromIds.filter((id) => id && id !== toId))
+    if (!from.size) throw new Error('没有要合并的标签')
+    for (const id of from) {
+      if (!this.data.tags.some((t) => t.id === id)) {
+        throw new Error('部分标签不存在，可能已被删除')
+      }
+    }
+
+    let affectedEntries = 0
+    for (const e of this.data.entries) {
+      if (!e.tagIds.some((id) => from.has(id))) continue
+      const next: string[] = []
+      const seen = new Set<string>()
+      for (const id of e.tagIds) {
+        const mapped = from.has(id) ? toId : id
+        if (seen.has(mapped)) continue
+        seen.add(mapped)
+        next.push(mapped)
+      }
+      e.tagIds = next
+      e.updatedAt = nowIso()
+      affectedEntries++
+    }
+
+    this.data.tags = this.data.tags.filter((t) => !from.has(t.id))
+    this.touch()
+    return { merged: from.size, affectedEntries, target }
+  }
+
+  /** 把用户确认过的标签名写入记录：已存在的复用，不存在的新建 */
+  applyTagCandidates(assignments: TagCandidateAssignment[]): {
+    updatedEntries: number
+    createdTags: string[]
+  } {
+    const created: string[] = []
+    let updatedEntries = 0
+
+    for (const a of assignments) {
+      const e = this.getEntry(a.entryId)
+      if (!e) continue
+      const ids: string[] = []
+      for (const raw of a.tags ?? []) {
+        const name = raw.trim()
+        if (!name) continue
+        const exist = this.findTagByName(name)
+        if (exist) {
+          ids.push(exist.id)
+          continue
+        }
+        const t = this.ensureTag(name)
+        ids.push(t.id)
+        created.push(t.name)
+      }
+      if (!ids.length) continue
+      const before = e.tagIds.length
+      e.tagIds = [...new Set([...e.tagIds, ...ids])]
+      if (e.tagIds.length !== before) {
+        e.updatedAt = nowIso()
+        updatedEntries++
+      }
+    }
+
+    if (updatedEntries || created.length) this.touch()
+    return { updatedEntries, createdTags: [...new Set(created)] }
   }
 
   /* ── 标签组 ── */

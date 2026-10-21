@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { groupMap, selectEntries, useStore } from '../store'
 import { Icon, Modal, Stars } from './ui'
+import AiTagModal from './AiTagModal'
 
 export default function BatchBar(): React.ReactElement | null {
   const selectedIds = useStore((s) => s.selectedIds)
+  const panel = useStore((s) => s.panel)
   const data = useStore((s) => s.data)
   const clearSelection = useStore((s) => s.clearSelection)
   const selectMany = useStore((s) => s.selectMany)
@@ -15,7 +17,10 @@ export default function BatchBar(): React.ReactElement | null {
   const toast = useStore((s) => s.toast)
 
   const groups = useMemo(() => groupMap(data), [data])
-  const [tagModal, setTagModal] = useState<null | 'add' | 'remove'>(null)
+  const tagModal = useStore((s) => s.batchTagModal)
+  const setTagModal = useStore((s) => s.setBatchTagModal)
+  const config = useStore((s) => s.config)
+  const [aiOpen, setAiOpen] = useState(false)
   const [collModal, setCollModal] = useState(false)
   const [q, setQ] = useState('')
   const [newTag, setNewTag] = useState('')
@@ -31,7 +36,13 @@ export default function BatchBar(): React.ReactElement | null {
       .slice(0, 120)
   }, [data.tags, q])
 
-  if (selectedIds.length < 1) return null
+  // 选中项被删空时，把没关掉的弹层一起收掉，避免下次选中时突然弹出来
+  useEffect(() => {
+    if ((selectedIds.length < 1 || panel === 'tags') && tagModal !== 'none') setTagModal('none')
+  }, [selectedIds.length, panel, tagModal, setTagModal])
+
+  // 标签管理面板有自己的选中与操作栏，避免和底部批量条抢空间
+  if (selectedIds.length < 1 || panel === 'tags') return null
 
   const total = entries.length
   const allSelected = selectedIds.length > 0 && selectedIds.length === total
@@ -40,7 +51,7 @@ export default function BatchBar(): React.ReactElement | null {
     if (!tagIds.length) return
     if (tagModal === 'add') await patchEntries(selectedIds, { addTagIds: tagIds })
     else await patchEntries(selectedIds, { removeTagIds: tagIds })
-    setTagModal(null)
+    setTagModal('none')
     setQ('')
   }
 
@@ -81,6 +92,11 @@ export default function BatchBar(): React.ReactElement | null {
         <button type="button" className="bb-btn" onClick={() => setTagModal('remove')}>
           <Icon name="minus" size={13} /> 移标签
         </button>
+        {config.aiEnabled && config.aiApiKey.trim() && (
+          <button type="button" className="bb-btn" onClick={() => setAiOpen(true)}>
+            <Icon name="sparkles" size={13} /> AI 打标
+          </button>
+        )}
         <button type="button" className="bb-btn" onClick={() => setCollModal(true)}>
           <Icon name="folder" size={13} /> 归入集合
         </button>
@@ -118,8 +134,8 @@ export default function BatchBar(): React.ReactElement | null {
       </div>
 
       <Modal
-        open={tagModal !== null}
-        onClose={() => setTagModal(null)}
+        open={tagModal !== 'none'}
+        onClose={() => setTagModal('none')}
         width={440}
         label="批量标签"
       >
@@ -216,6 +232,8 @@ export default function BatchBar(): React.ReactElement | null {
           ))}
         </div>
       </Modal>
+
+      <AiTagModal open={aiOpen} onClose={() => setAiOpen(false)} entryIds={selectedIds} />
     </>
   )
 }

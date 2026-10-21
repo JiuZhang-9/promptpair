@@ -147,6 +147,16 @@ export interface AppConfig {
   minimizeToTray: boolean
   /** 最后选中的集合（仅记忆，非业务数据） */
   lastCollectionId?: string
+
+  /* ── AI 辅助打标（可选）── */
+  /** 总开关。关闭或没有 Key 时，相关入口整体隐藏 */
+  aiEnabled: boolean
+  /** OpenAI 兼容接口，例如 https://api.openai.com/v1 */
+  aiBaseUrl: string
+  /** API Key。只保存在本机 config.json（明文），不进入素材库 */
+  aiApiKey: string
+  /** 模型名，例如 gpt-4o-mini */
+  aiModel: string
 }
 
 /* ────────────────────────── 操作载荷 ────────────────────────── */
@@ -224,6 +234,45 @@ export interface UpdateStatus {
   version?: string
   percent?: number
   message?: string
+}
+
+/* ────────────────────────── 标签治理 / AI 打标 ────────────────────────── */
+
+/** 标签合并结果 */
+export interface TagMergeResult {
+  /** 被合并掉的标签数（不含目标标签） */
+  merged: number
+  /** 受影响的记录数 */
+  affectedEntries: number
+  /** 合并后的目标标签 */
+  target: Tag
+}
+
+/** 一条记录的 AI 候选标签 */
+export interface AiTagSuggestion {
+  entryId: Id
+  tags: string[]
+  /** 单条失败原因；成功时为空 */
+  error?: string
+}
+
+export interface AiSuggestResult {
+  results: AiTagSuggestion[]
+  model: string
+  /** 失败的记录数 */
+  failed: number
+}
+
+export interface AiTestResult {
+  ok: boolean
+  message: string
+  model?: string
+}
+
+/** 用户确认后要写入的标签：按记录分组，标签用名字表达（可新建） */
+export interface TagCandidateAssignment {
+  entryId: Id
+  tags: string[]
 }
 
 /** 默认标签组：给出可用的初始分类法，用户可自由改名/删改。

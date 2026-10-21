@@ -77,6 +77,15 @@ function createWindow(): void {
 
   win.once('ready-to-show', () => win?.show())
 
+  // 某些远程桌面 / 无 GPU 环境不会触发 ready-to-show，窗口会一直藏着。
+  // 页面加载完成或 2 秒后仍不可见就强制显示，避免“启动了但没窗口”。
+  const reveal = (): void => {
+    if (!win || win.isDestroyed()) return
+    if (!win.isVisible()) win.show()
+  }
+  win.webContents.once('did-finish-load', reveal)
+  setTimeout(reveal, 2000)
+
   // 外链走系统浏览器，不在应用内开新窗口
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) shell.openExternal(url)

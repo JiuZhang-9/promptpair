@@ -1,4 +1,6 @@
 import type {
+  AiSuggestResult,
+  AiTestResult,
   AppConfig,
   Asset,
   BatchPatch,
@@ -9,7 +11,9 @@ import type {
   LibraryData,
   PromptEntry,
   Tag,
+  TagCandidateAssignment,
   TagGroup,
+  TagMergeResult,
   UpdateStatus
 } from '../shared/types'
 
@@ -66,6 +70,8 @@ export interface PpApi {
   createTag(name: string, groupId: string): Promise<Tag>
   updateTag(id: string, patch: { name?: string; groupId?: string }): Promise<Tag>
   deleteTag(id: string): Promise<boolean>
+  deleteTags(ids: string[]): Promise<{ deleted: number }>
+  mergeTags(fromIds: string[], toId: string): Promise<TagMergeResult>
   createTagGroup(name: string, color: string): Promise<TagGroup>
   updateTagGroup(id: string, patch: { name?: string; color?: string }): Promise<TagGroup>
   deleteTagGroup(id: string): Promise<boolean>
@@ -104,6 +110,12 @@ export interface PpApi {
 
   captureInfo(): Promise<{ port: number }>
   captureTest(): Promise<{ ok: boolean; port?: number; message?: string }>
+
+  aiSuggestTags(entryIds: string[]): Promise<AiSuggestResult>
+  aiTest(): Promise<AiTestResult>
+  aiApplyTags(
+    assignments: TagCandidateAssignment[]
+  ): Promise<{ updatedEntries: number; createdTags: string[] }>
 
   updaterStatus(): Promise<UpdateStatus>
   checkUpdate(): Promise<UpdateStatus>

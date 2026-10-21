@@ -25,6 +25,7 @@ function Row({
 export default function SettingsPanel(): React.ReactElement {
   const panel = useStore((s) => s.panel)
   const setPanel = useStore((s) => s.setPanel)
+  const setShortcutsOpen = useStore((s) => s.setShortcutsOpen)
   const config = useStore((s) => s.config)
   const applyConfig = useStore((s) => s.applyConfig)
   const root = useStore((s) => s.root)
@@ -38,6 +39,17 @@ export default function SettingsPanel(): React.ReactElement {
     null
   )
   const [capTest, setCapTest] = useState<string>('')
+  const [aiDraft, setAiDraft] = useState({
+    baseUrl: config.aiBaseUrl,
+    apiKey: config.aiApiKey,
+    model: config.aiModel
+  })
+  const [aiTestMsg, setAiTestMsg] = useState('')
+  const [aiTesting, setAiTesting] = useState(false)
+
+  useEffect(() => {
+    setAiDraft({ baseUrl: config.aiBaseUrl, apiKey: config.aiApiKey, model: config.aiModel })
+  }, [config.aiBaseUrl, config.aiApiKey, config.aiModel])
 
   useEffect(() => {
     if (panel !== 'settings') return
@@ -225,6 +237,88 @@ export default function SettingsPanel(): React.ReactElement {
         </div>
 
         <div className="set-group">
+          <div className="set-group-title">AI 打标（可选）</div>
+          <Row label="启用" desc="不填 Key 时功能整体隐藏；Key 只保存在本机配置里">
+            <Toggle
+              label=""
+              checked={config.aiEnabled}
+              onChange={(v) => void applyConfig({ aiEnabled: v })}
+            />
+          </Row>
+          {config.aiEnabled && (
+            <>
+              <Row label="接口地址" desc="OpenAI 兼容，通常以 /v1 结尾">
+                <input
+                  className="set-input"
+                  value={aiDraft.baseUrl}
+                  placeholder="https://api.openai.com/v1"
+                  onChange={(e) => setAiDraft((d) => ({ ...d, baseUrl: e.target.value }))}
+                  onBlur={() => void applyConfig({ aiBaseUrl: aiDraft.baseUrl.trim() })}
+                />
+              </Row>
+              <Row label="API Key" desc="明文保存在本机 config.json，不进入素材库">
+                <input
+                  className="set-input"
+                  type="password"
+                  value={aiDraft.apiKey}
+                  placeholder="sk-…"
+                  onChange={(e) => setAiDraft((d) => ({ ...d, apiKey: e.target.value }))}
+                  onBlur={() => void applyConfig({ aiApiKey: aiDraft.apiKey.trim() })}
+                />
+              </Row>
+              <Row label="模型" desc="需要支持图片输入（多模态）">
+                <input
+                  className="set-input"
+                  value={aiDraft.model}
+                  placeholder="gpt-4o-mini"
+                  onChange={(e) => setAiDraft((d) => ({ ...d, model: e.target.value }))}
+                  onBlur={() => void applyConfig({ aiModel: aiDraft.model.trim() })}
+                />
+              </Row>
+              <Row label="连接测试" desc={aiTestMsg}>
+                <button
+                  type="button"
+                  className="btn small"
+                  disabled={aiTesting}
+                  onClick={async () => {
+                    setAiTesting(true)
+                    setAiTestMsg('')
+                    try {
+                      await applyConfig({
+                        aiBaseUrl: aiDraft.baseUrl.trim(),
+                        aiApiKey: aiDraft.apiKey.trim(),
+                        aiModel: aiDraft.model.trim()
+                      })
+                      const r = await window.pp.aiTest()
+                      setAiTestMsg(r.message)
+                    } catch (e) {
+                      setAiTestMsg(
+                        (e as Error).message.replace(
+                          /^Error invoking remote method '[^']+':\s*(Error:\s*)?/,
+                          ''
+                        )
+                      )
+                    } finally {
+                      setAiTesting(false)
+                    }
+                  }}
+                >
+                  <Icon name="refresh" size={12} />
+                  {aiTesting ? '测试中…' : '测试连接'}
+                </button>
+              </Row>
+              <div className="set-help">
+                <b>说明：</b>
+                <ul>
+                  <li>选中记录后，在底部批量栏点「AI 打标」；候选确认后才写入。</li>
+                  <li>Key 以明文保存在本机，不会随素材库或分享包分发。</li>
+                </ul>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="set-group">
           <div className="set-group-title">数据</div>
           <Row label="导出全部数据 JSON" desc="纯数据备份，方便迁移">
             <button
@@ -248,6 +342,20 @@ export default function SettingsPanel(): React.ReactElement {
               }}
             >
               导出
+            </button>
+          </Row>
+          <Row label="标签管理" desc="批量重命名、合并、清理近似重复">
+            <button type="button" className="btn small" onClick={() => setPanel('tags')}>
+              <Icon name="tag" size={12} /> 打开
+            </button>
+          </Row>
+        </div>
+
+        <div className="set-group">
+          <div className="set-group-title">帮助</div>
+          <Row label="键盘快捷键" desc="J/K 移动焦点，Space 选中，1–5 评分，? 查看全部">
+            <button type="button" className="btn small" onClick={() => setShortcutsOpen(true)}>
+              查看
             </button>
           </Row>
         </div>

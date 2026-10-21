@@ -66,6 +66,7 @@ export default function TopBar(): React.ReactElement {
   const exportPack = useStore((s) => s.exportPack)
   const startCreate = useStore((s) => s.startCreate)
   const setPanel = useStore((s) => s.setPanel)
+  const setShortcutsOpen = useStore((s) => s.setShortcutsOpen)
   const checkUpdate = useStore((s) => s.checkUpdate)
   const installUpdate = useStore((s) => s.installUpdate)
   const toast = useStore((s) => s.toast)
@@ -325,6 +326,15 @@ export default function TopBar(): React.ReactElement {
               </>
             )}
           </Dropdown>
+
+          <button
+            type="button"
+            className="icon-btn"
+            title="键盘快捷键 (?)"
+            onClick={() => setShortcutsOpen(true)}
+          >
+            <Icon name="help" size={16} />
+          </button>
 
           <button
             type="button"

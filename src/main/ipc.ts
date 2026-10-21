@@ -9,7 +9,8 @@ import type {
   EntryDraft,
   ExportOptions,
   ImportResult,
-  LibraryData
+  LibraryData,
+  TagCandidateAssignment
 } from '../shared/types'
 import { kindOfExt } from '../shared/types'
 import { Library } from './library'
@@ -19,6 +20,7 @@ import { importCaptured, importFiles, type ImportOptions } from './importer'
 import { defaultPackName, exportJson, exportPack, mergePack } from './exporter'
 import { scanDuplicates } from './duplicates'
 import { addFileToLibrary, repairAsset, hammingHex } from './media'
+import { suggestTags, testAiConnection } from './ai'
 import { startCaptureServer, getCapturePort } from './capture'
 import { checkForUpdatesManually, getUpdateStatus, quitAndInstall } from './updater'
 import { APP_VERSION } from './version'
@@ -191,6 +193,32 @@ export function registerIpc(ctx: AppCtx): void {
     ctx.lib.deleteTag(id)
     ctx.lib.flush()
     return true
+  })
+
+  ipcMain.handle('tag:deleteMany', (_e, ids: string[]) => {
+    const deleted = ctx.lib.deleteTags(ids)
+    ctx.lib.flush()
+    return { deleted }
+  })
+
+  ipcMain.handle('tag:merge', (_e, fromIds: string[], toId: string) => {
+    const r = ctx.lib.mergeTags(fromIds, toId)
+    ctx.lib.flush()
+    return r
+  })
+
+  /* ───────────── AI 辅助打标（可选） ───────────── */
+
+  ipcMain.handle('ai:suggestTags', (_e, entryIds: string[]) =>
+    suggestTags(ctx.lib, ctx.cfg.data, entryIds)
+  )
+
+  ipcMain.handle('ai:test', () => testAiConnection(ctx.cfg.data))
+
+  ipcMain.handle('ai:applyTags', (_e, assignments: TagCandidateAssignment[]) => {
+    const r = ctx.lib.applyTagCandidates(assignments)
+    ctx.lib.flush()
+    return r
   })
 
   ipcMain.handle('tagGroup:create', (_e, name: string, color: string) => {

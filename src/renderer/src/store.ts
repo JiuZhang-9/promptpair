@@ -16,7 +16,8 @@ import type { DupReport, ImportOptions, LibrarySnapshot } from '../../preload/in
 
 export type SortKey = 'newest' | 'oldest' | 'rating' | 'title' | 'assets'
 export type KindFilter = 'all' | 'image' | 'video'
-export type PanelKind = 'none' | 'settings' | 'dups'
+export type PanelKind = 'none' | 'settings' | 'dups' | 'tags'
+export type BatchTagModal = 'none' | 'add' | 'remove'
 
 export interface Toast {
   id: string
@@ -54,10 +55,14 @@ export interface StoreState {
   sort: SortKey
   thumbSize: number
   panel: PanelKind
+  batchTagModal: BatchTagModal
+  shortcutsOpen: boolean
 
   /* 交互 */
   selectedIds: string[]
   anchorId: string | null
+  /** 键盘焦点：与 selectedIds 分开，J/K 只移动它，Space 才切换选中 */
+  focusIndex: number | null
   detailId: string | null
   editorOpen: boolean
   draft: EntryDraft | null
@@ -86,10 +91,16 @@ export interface StoreState {
   setThumbSize: (n: number) => void
   resetFilters: () => void
   setPanel: (p: PanelKind) => void
+  setBatchTagModal: (m: BatchTagModal) => void
+  setShortcutsOpen: (v: boolean) => void
 
   select: (id: string | null, opts?: { additive?: boolean; range?: boolean }) => void
   selectMany: (ids: string[]) => void
   clearSelection: () => void
+  setFocusIndex: (i: number | null) => void
+  moveFocus: (delta: number) => void
+  toggleFocusSelection: () => void
+  selectAllFiltered: () => void
   openDetail: (id: string | null) => void
 
   startCreate: (assetIds?: string[]) => void
@@ -134,7 +145,11 @@ const EMPTY_CFG: AppConfig = {
   autoCreateTags: true,
   autoReadSidecar: true,
   autoGroupByStem: true,
-  minimizeToTray: false
+  minimizeToTray: false,
+  aiEnabled: false,
+  aiBaseUrl: '',
+  aiApiKey: '',
+  aiModel: ''
 }
 
 function uid(): string {
@@ -162,9 +177,12 @@ export const useStore = create<StoreState>((set, get) => ({
   sort: 'newest',
   thumbSize: 220,
   panel: 'none',
+  batchTagModal: 'none',
+  shortcutsOpen: false,
 
   selectedIds: [],
   anchorId: null,
+  focusIndex: null,
   detailId: null,
   editorOpen: false,
   draft: null,
@@ -277,20 +295,25 @@ export const useStore = create<StoreState>((set, get) => ({
       platform: null
     }),
   setPanel: (p) => set({ panel: p }),
+  setBatchTagModal: (m) => set({ batchTagModal: m }),
+  setShortcutsOpen: (v) => set({ shortcutsOpen: v }),
 
   select: (id, opts) => {
-    const { selectedIds, data } = get()
+    const { selectedIds } = get()
     if (!id) {
-      set({ selectedIds: [], anchorId: null })
+      set({ selectedIds: [], anchorId: null, focusIndex: null })
       return
     }
-    if (opts?.range && get().anchorId) {
-      const list = selectEntries(get()).map((e) => e.id)
-      const a = list.indexOf(get().anchorId!)
-      const b = list.indexOf(id)
+    const list = selectEntries(get()).map((e) => e.id)
+    const idx = list.indexOf(id)
+    const anchor = get().anchorId
+
+    if (opts?.range && anchor) {
+      const a = list.indexOf(anchor)
+      const b = idx
       if (a >= 0 && b >= 0) {
         const [lo, hi] = a < b ? [a, b] : [b, a]
-        set({ selectedIds: list.slice(lo, hi + 1) })
+        set({ selectedIds: list.slice(lo, hi + 1), focusIndex: idx })
         return
       }
     }
@@ -299,15 +322,47 @@ export const useStore = create<StoreState>((set, get) => ({
         selectedIds: selectedIds.includes(id)
           ? selectedIds.filter((x) => x !== id)
           : [...selectedIds, id],
-        anchorId: id
+        anchorId: id,
+        focusIndex: idx >= 0 ? idx : get().focusIndex
       })
       return
     }
-    set({ selectedIds: [id], anchorId: id })
-    void data
+    set({ selectedIds: [id], anchorId: id, focusIndex: idx >= 0 ? idx : null })
   },
   selectMany: (ids) => set({ selectedIds: ids, anchorId: ids[0] ?? null }),
-  clearSelection: () => set({ selectedIds: [], anchorId: null }),
+  clearSelection: () =>
+    set({ selectedIds: [], anchorId: null, focusIndex: null, batchTagModal: 'none' }),
+  setFocusIndex: (i) => set({ focusIndex: i }),
+  moveFocus: (delta) => {
+    const list = selectEntries(get())
+    if (!list.length) return
+    const cur = get().focusIndex
+    const next =
+      cur == null
+        ? delta > 0
+          ? 0
+          : list.length - 1
+        : Math.max(0, Math.min(list.length - 1, cur + delta))
+    set({ focusIndex: next })
+  },
+  toggleFocusSelection: () => {
+    const s = get()
+    const list = selectEntries(s)
+    if (!list.length) return
+    const idx = s.focusIndex == null ? 0 : Math.max(0, Math.min(list.length - 1, s.focusIndex))
+    const id = list[idx].id
+    set({
+      focusIndex: idx,
+      selectedIds: s.selectedIds.includes(id)
+        ? s.selectedIds.filter((x) => x !== id)
+        : [...s.selectedIds, id],
+      anchorId: id
+    })
+  },
+  selectAllFiltered: () => {
+    const ids = selectEntries(get()).map((e) => e.id)
+    set({ selectedIds: ids, anchorId: ids[0] ?? null })
+  },
   openDetail: (id) => set({ detailId: id }),
 
   startCreate: (assetIds) =>

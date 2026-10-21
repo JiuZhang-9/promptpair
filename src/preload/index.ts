@@ -29,6 +29,9 @@ const api = {
   createTag: (name: string, groupId: string) => ipcRenderer.invoke('tag:create', name, groupId),
   updateTag: (id: string, patch: unknown) => ipcRenderer.invoke('tag:update', id, patch),
   deleteTag: (id: string) => ipcRenderer.invoke('tag:delete', id),
+  deleteTags: (ids: string[]) => ipcRenderer.invoke('tag:deleteMany', ids),
+  mergeTags: (fromIds: string[], toId: string) =>
+    ipcRenderer.invoke('tag:merge', fromIds, toId),
   createTagGroup: (name: string, color: string) => ipcRenderer.invoke('tagGroup:create', name, color),
   updateTagGroup: (id: string, patch: unknown) => ipcRenderer.invoke('tagGroup:update', id, patch),
   deleteTagGroup: (id: string) => ipcRenderer.invoke('tagGroup:delete', id),
@@ -66,6 +69,11 @@ const api = {
   /* 采集 */
   captureInfo: () => ipcRenderer.invoke('capture:info') as Promise<{ port: number }>,
   captureTest: () => ipcRenderer.invoke('capture:test'),
+
+  /* AI 辅助打标（可选） */
+  aiSuggestTags: (entryIds: string[]) => ipcRenderer.invoke('ai:suggestTags', entryIds),
+  aiTest: () => ipcRenderer.invoke('ai:test'),
+  aiApplyTags: (assignments: unknown) => ipcRenderer.invoke('ai:applyTags', assignments),
 
   /* 更新 */
   updaterStatus: () => ipcRenderer.invoke('updater:status'),
