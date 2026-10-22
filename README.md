@@ -100,6 +100,8 @@ env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-share.cjs    # 单页 HT
 > 构建报「文件被占用」时，先 `npm run clean` 再重来，
 > **不要**用 `--config.directories.output=xxx` 换个目录绕过去 —— 那正是仓库里一度出现
 > `rel/`、`rel2/` 三个产物目录的原因。规则见 [docs/发布规范.md 第 9 节](docs/发布规范.md)。
+>
+> 本地打好的安装包会**按版本号保留**在 `release/`，`npm run clean` 不会删它们；只有坏包才删。
 
 ### 环境要求
 
