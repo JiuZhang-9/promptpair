@@ -17,7 +17,7 @@ import { Library } from './library'
 import type { Config } from './config'
 import { defaultLibraryPath } from './config'
 import { importCaptured, importFiles, type ImportOptions } from './importer'
-import { defaultPackName, exportJson, exportPack, mergePack } from './exporter'
+import { defaultPackName, exportJson, exportPack, exportSingleHtml, mergePack } from './exporter'
 import { scanDuplicates } from './duplicates'
 import { addFileToLibrary, repairAsset, hammingHex } from './media'
 import { suggestTags, testAiConnection } from './ai'
@@ -425,6 +425,31 @@ export function registerIpc(ctx: AppCtx): void {
     send(ctx, 'pack:done', r)
     return r
   })
+
+  ipcMain.handle(
+    'pack:exportHtml',
+    async (_e, opts: { entryIds: string[]; embed: 'thumb' | 'full'; suggestedName?: string }) => {
+      // 自动化验收钩子
+      let out = process.env.PP_EXPORT_HTML_TO || ''
+      if (!out) {
+        const base = defaultPackName(ctx.lib, opts.suggestedName).replace(/\.promptpack$/i, '.html')
+        const save = await saveDialog(ctx, {
+          title: '导出单页 HTML',
+          defaultPath: path.join(app.getPath('downloads'), base),
+          filters: [{ name: 'HTML', extensions: ['html'] }]
+        })
+        if (save.canceled || !save.filePath) return null
+        out = save.filePath.toLowerCase().endsWith('.html')
+          ? save.filePath
+          : save.filePath + '.html'
+      }
+      return exportSingleHtml(
+        ctx.lib,
+        { entryIds: opts.entryIds, outPath: out, embed: opts.embed },
+        { appVersion: APP_VERSION }
+      )
+    }
+  )
 
   ipcMain.handle('pack:import', async () => {
     const open = await openDialog(ctx, {

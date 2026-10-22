@@ -5,7 +5,7 @@ import { Zip, ZipPassThrough, Unzip, UnzipInflate, UnzipPassThrough } from 'ffla
 import type { ExportOptions, LibraryData, PromptEntry } from '../shared/types'
 import { Library, newId, nowIso, safeName } from './library'
 import { addFileToLibrary } from './media'
-import { buildPreviewHtml, type PreviewItem, type PreviewPack } from './preview'
+import { buildPreviewHtml, type PreviewAsset, type PreviewItem, type PreviewPack } from './preview'
 
 export const PACK_MAGIC = 'promptpair.pack'
 export const PACK_FORMAT_VERSION = 1
@@ -19,23 +19,17 @@ export interface ExportProgress {
   current?: string
 }
 
-export async function exportPack(
+/** 把条目转成预览页需要的结构；.promptpack 与单页 HTML 共用 */
+export function buildPreviewPack(
   lib: Library,
-  opts: ExportOptions,
-  meta: { appVersion: string },
-  onProgress?: (p: ExportProgress) => void
-): Promise<{ path: string; entries: number; assets: number; bytes: number }> {
-  const entries = lib.data.entries.filter((e) => opts.entryIds.includes(e.id))
-  if (!entries.length) throw new Error('没有可导出的条目')
-
-  // 收集涉及的资源
-  const assetIds = new Set<string>()
-  for (const e of entries) for (const id of e.assetIds) assetIds.add(id)
-  const assets = lib.data.assets.filter((a) => assetIds.has(a.id))
-
+  entries: PromptEntry[],
+  packName: string,
+  appVersion: string
+): PreviewPack {
   const tagById = new Map(lib.data.tags.map((t) => [t.id, t]))
   const groupById = new Map(lib.data.tagGroups.map((g) => [g.id, g]))
   const collById = new Map(lib.data.collections.map((c) => [c.id, c]))
+  const assetById = new Map(lib.data.assets.map((a) => [a.id, a]))
 
   const tagNameOf = (id: string): string => tagById.get(id)?.name ?? ''
   const tagColorOf = (id: string): string => {
@@ -44,7 +38,6 @@ export async function exportPack(
     return groupById.get(t.groupId)?.color ?? '#8b95a8'
   }
 
-  // 预览数据
   const previewItems: PreviewItem[] = entries.map((e) => ({
     title: e.title,
     positive: e.positive,
@@ -63,11 +56,13 @@ export async function exportPack(
     url: e.source?.url,
     createdAt: e.createdAt,
     assets: e.assetIds
-      .map((id) => assets.find((a) => a.id === id))
+      .map((id) => assetById.get(id))
       .filter(Boolean)
       .map((a) => ({
+        assetId: a!.id,
         rel: a!.relPath,
         thumb: a!.thumbRel,
+        name: a!.relPath.split('/').pop(),
         kind: a!.kind,
         w: a!.width,
         h: a!.height
@@ -75,12 +70,11 @@ export async function exportPack(
   }))
 
   const usedTagNames = [...new Set(entries.flatMap((e) => e.tagIds.map(tagNameOf)).filter(Boolean))]
-  const packName = path.basename(opts.outPath).replace(/\.promptpack$/i, '')
 
-  const previewPack: PreviewPack = {
+  return {
     name: packName,
     exportedAt: nowIso(),
-    appVersion: meta.appVersion,
+    appVersion,
     items: previewItems,
     tags: usedTagNames.map((n) => {
       const id = entries.flatMap((e) => e.tagIds).find((tid) => tagById.get(tid)?.name === n)!
@@ -91,6 +85,132 @@ export async function exportPack(
       .filter(Boolean)
       .map((c) => ({ name: c!.name, color: c!.color }))
   }
+}
+
+const IMG_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+  '.avif': 'image/avif'
+}
+
+function dataUrlOf(absPath: string): { url: string; bytes: number } {
+  const ext = path.extname(absPath).toLowerCase()
+  const buf = fs.readFileSync(absPath)
+  return {
+    url: `data:${IMG_MIME[ext] ?? 'application/octet-stream'};base64,${buf.toString('base64')}`,
+    bytes: buf.length
+  }
+}
+
+export interface SingleHtmlOptions {
+  entryIds: string[]
+  outPath: string
+  /** thumb = 默认轻量；full = 嵌原图（视频仍只放封面） */
+  embed: 'thumb' | 'full'
+}
+
+/** 导出单页 HTML：对方双击即看、直接复制，不需要解压或安装 */
+export async function exportSingleHtml(
+  lib: Library,
+  opts: SingleHtmlOptions,
+  meta: { appVersion: string }
+): Promise<{ path: string; entries: number; assets: number; bytes: number }> {
+  const entries = lib.data.entries.filter((e) => opts.entryIds.includes(e.id))
+  if (!entries.length) throw new Error('没有可导出的条目')
+
+  const packName = path.basename(opts.outPath).replace(/\.html?$/i, '')
+  const pack = buildPreviewPack(lib, entries, packName, meta.appVersion)
+  const full = opts.embed === 'full'
+
+  interface PlanItem {
+    asset: PreviewAsset
+    src: string | null
+    poster: string | null
+  }
+  const plan: PlanItem[] = []
+  let total = 0
+
+  for (const item of pack.items) {
+    for (const pa of item.assets) {
+      const a = pa.assetId ? lib.getAsset(pa.assetId) : undefined
+      if (!a) continue
+      const thumbAbs = a.thumbRel ? lib.abs(a.thumbRel) : ''
+      const fullAbs = lib.abs(a.relPath)
+      const thumbOk = !!thumbAbs && fs.existsSync(thumbAbs)
+      const fullOk = fs.existsSync(fullAbs)
+
+      let src = ''
+      let poster = ''
+      if (a.kind === 'video') {
+        poster = thumbOk ? thumbAbs : ''
+      } else if (full) {
+        src = fullOk ? fullAbs : thumbOk ? thumbAbs : ''
+        poster = thumbOk ? thumbAbs : src
+      } else {
+        src = thumbOk ? thumbAbs : fullOk ? fullAbs : ''
+        poster = src
+      }
+
+      if (src) total += fs.statSync(src).size
+      if (poster && poster !== src) total += fs.statSync(poster).size
+      plan.push({ asset: pa, src: src || null, poster: poster || null })
+    }
+  }
+
+  const estimated = Math.ceil(total * 1.34)
+  if (estimated > 200 * 1024 * 1024) {
+    throw new Error(
+      `单页 HTML 预计约 ${Math.round(estimated / 1024 / 1024)}MB，超过 200MB 上限；请改用「缩略图」模式或 .promptpack`
+    )
+  }
+
+  for (const p of plan) {
+    const poster = p.poster ? dataUrlOf(p.poster) : null
+    const src = p.src ? dataUrlOf(p.src) : null
+    if (p.asset.kind === 'video') {
+      p.asset.rel = ''
+      p.asset.thumb = poster?.url
+      p.asset.playable = false
+    } else if (full) {
+      p.asset.rel = src?.url ?? poster?.url ?? ''
+      p.asset.thumb = poster?.url ?? p.asset.rel
+    } else {
+      p.asset.rel = src?.url ?? ''
+      p.asset.thumb = p.asset.rel
+    }
+  }
+
+  fs.mkdirSync(path.dirname(opts.outPath), { recursive: true })
+  const html = buildPreviewHtml(pack)
+  fs.writeFileSync(opts.outPath, html, 'utf8')
+  const bytes = fs.statSync(opts.outPath).size
+  return { path: opts.outPath, entries: entries.length, assets: plan.length, bytes }
+}
+
+export async function exportPack(
+  lib: Library,
+  opts: ExportOptions,
+  meta: { appVersion: string },
+  onProgress?: (p: ExportProgress) => void
+): Promise<{ path: string; entries: number; assets: number; bytes: number }> {
+  const entries = lib.data.entries.filter((e) => opts.entryIds.includes(e.id))
+  if (!entries.length) throw new Error('没有可导出的条目')
+
+  // 收集涉及的资源
+  const assetIds = new Set<string>()
+  for (const e of entries) for (const id of e.assetIds) assetIds.add(id)
+  const assets = lib.data.assets.filter((a) => assetIds.has(a.id))
+
+  const tagById = new Map(lib.data.tags.map((t) => [t.id, t]))
+  const collById = new Map(lib.data.collections.map((c) => [c.id, c]))
+  const tagNameOf = (id: string): string => tagById.get(id)?.name ?? ''
+
+  const packName = path.basename(opts.outPath).replace(/\.promptpack$/i, '')
+  const previewPack = buildPreviewPack(lib, entries, packName, meta.appVersion)
 
   const manifest = {
     magic: PACK_MAGIC,

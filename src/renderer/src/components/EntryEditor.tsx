@@ -366,6 +366,15 @@ export default function EntryEditor(): React.ReactElement | null {
             </div>
           </Field>
 
+          <Field label="模型" hint="生成这张图用的模型，例如 即梦3.0 / MJ v6 / SDXL">
+            <input
+              className="input"
+              value={draft.params.model ?? ''}
+              onChange={(e) => patchParam('model', e.target.value)}
+              placeholder="即梦3.0 / MJ v6 / SDXL…"
+            />
+          </Field>
+
           <div className="ed-row">
             <Field label="评分" grow>
               <Stars value={draft.rating} onChange={(v) => patch({ rating: v })} />
@@ -434,14 +443,6 @@ export default function EntryEditor(): React.ReactElement | null {
               </Field>
 
               <div className="ed-grid">
-                <Field label="模型">
-                  <input
-                    className="input"
-                    value={draft.params.model ?? ''}
-                    onChange={(e) => patchParam('model', e.target.value)}
-                    placeholder="即梦3.0 / MJ v6 / SDXL…"
-                  />
-                </Field>
                 <Field label="Seed">
                   <input
                     className="input"

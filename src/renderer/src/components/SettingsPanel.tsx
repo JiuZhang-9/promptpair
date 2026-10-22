@@ -249,6 +249,28 @@ export default function SettingsPanel(): React.ReactElement {
               onChange={(v) => void applyConfig({ aiEnabled: v })}
             />
           </Row>
+          <Row
+            label="状态"
+            desc={
+              config.aiEnabled
+                ? '已启用；候选标签确认后才会写入'
+                : `未启用${aiDraft.model ? ' · 当前模型 ' + aiDraft.model : ''}`
+            }
+          >
+            <span className={'pill' + (config.aiEnabled ? ' on' : '')}>
+              {config.aiEnabled ? '已启用' : '未启用'}
+            </span>
+          </Row>
+          <Row label="模型" desc="需要支持图片输入（多模态）；未启用时只读">
+            <input
+              className="set-input"
+              value={aiDraft.model}
+              disabled={!config.aiEnabled}
+              placeholder="gpt-4o-mini"
+              onChange={(e) => setAiDraft((d) => ({ ...d, model: e.target.value }))}
+              onBlur={() => void applyConfig({ aiModel: aiDraft.model.trim() })}
+            />
+          </Row>
           {config.aiEnabled && (
             <>
               <Row label="接口地址" desc="OpenAI 兼容，通常以 /v1 结尾">
@@ -268,15 +290,6 @@ export default function SettingsPanel(): React.ReactElement {
                   placeholder="sk-…"
                   onChange={(e) => setAiDraft((d) => ({ ...d, apiKey: e.target.value }))}
                   onBlur={() => void applyConfig({ aiApiKey: aiDraft.apiKey.trim() })}
-                />
-              </Row>
-              <Row label="模型" desc="需要支持图片输入（多模态）">
-                <input
-                  className="set-input"
-                  value={aiDraft.model}
-                  placeholder="gpt-4o-mini"
-                  onChange={(e) => setAiDraft((d) => ({ ...d, model: e.target.value }))}
-                  onBlur={() => void applyConfig({ aiModel: aiDraft.model.trim() })}
                 />
               </Row>
               <Row label="连接测试" desc={aiTestMsg}>

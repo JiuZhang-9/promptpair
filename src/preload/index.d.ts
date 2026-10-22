@@ -100,6 +100,11 @@ export interface PpApi {
     includeMedia: boolean
     suggestedName?: string
   }): Promise<{ path: string; entries: number; assets: number; bytes: number } | null>
+  exportHtml(opts: {
+    entryIds: string[]
+    embed: 'thumb' | 'full'
+    suggestedName?: string
+  }): Promise<{ path: string; entries: number; assets: number; bytes: number } | null>
   importPack(): Promise<
     | { mode: 'merge'; result: { entries: number; assets: number; createdTags: string[] } }
     | { mode: 'new'; result: { entries: number; assets: number }; snapshot: LibrarySnapshot }

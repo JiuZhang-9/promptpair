@@ -1454,6 +1454,14 @@ input[type='range']:hover::-webkit-slider-thumb {
   color: var(--fg-4);
 }
 
+.mini-tag.model {
+  max-width: 96px;
+  color: var(--fg-2);
+  border-color: var(--line-2);
+  border-style: dashed;
+  font-family: ui-monospace, Consolas, monospace;
+}
+
 /* 空状态 */
 .empty {
   display: flex;
@@ -1641,6 +1649,9 @@ input[type='range']:hover::-webkit-slider-thumb {
   color: var(--fg-4);
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-scroll {
@@ -3134,6 +3145,11 @@ input[type='range']:hover::-webkit-slider-thumb {
 
 .set-input::placeholder {
   color: var(--fg-4);
+}
+
+.set-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* 危险按钮 */

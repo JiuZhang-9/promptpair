@@ -83,6 +83,9 @@ app.whenReady().then(async () => {
     await press(win, 'Escape')
     assert(!(await js(win, `!!document.querySelector('.overlay')`)), 'Esc 关闭设置弹窗')
 
+    const modelChips = await js(win, `document.querySelectorAll('.mini-tag.model').length`)
+    assert(modelChips > 0, '卡片显示生成模型徽标', modelChips)
+
     console.log('\n→ 左右栏收起…')
     await press(win, 'b', { ctrlKey: true })
     await sleep(280)
@@ -105,6 +108,15 @@ app.whenReady().then(async () => {
     assert(
       await js(win, `!!document.querySelector('.right-dock.open .detail')`),
       '点卡片打开右侧详情'
+    )
+    const dhSub = await js(
+      win,
+      `document.querySelector('.right-dock .dh-sub')?.textContent || ''`
+    )
+    assert(
+      /即梦|MJ|SDXL|可灵/.test(dhSub),
+      '详情头部显示生成模型',
+      dhSub
     )
 
     await press(win, 'b', { ctrlKey: true, shiftKey: true })

@@ -86,8 +86,9 @@ export default function DetailPanel(): React.ReactElement | null {
           <div className="dh-title" title={entry.title}>
             {entry.title || '未命名'}
           </div>
-          <div className="dh-sub">
-            {entry.source?.platform || '未标注来源'} · {formatDate(entry.createdAt)}
+          <div className="dh-sub" title={`${entry.source?.platform || '未标注来源'}${entry.params?.model ? ' · ' + entry.params.model : ''} · ${formatDate(entry.createdAt)}`}>
+            {entry.source?.platform || '未标注来源'}
+            {entry.params?.model ? ` · ${entry.params.model}` : ''} · {formatDate(entry.createdAt)}
           </div>
         </div>
         <button type="button" className="icon-btn" onClick={() => openDetail(null)} title="关闭 (Esc)">

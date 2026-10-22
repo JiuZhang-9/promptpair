@@ -51,6 +51,8 @@ function Card({
   const first = assets.get(entry.assetIds[0] ?? '')
   const video = first?.kind === 'video'
   const multi = entry.assetIds.length > 1
+  const model = entry.params?.model?.trim()
+  const shownTags = entry.tagIds.slice(0, model ? 2 : 3)
 
   return (
     <div
@@ -148,9 +150,14 @@ function Card({
         <div className={'card-prompt' + (entry.positive ? '' : ' dim')}>
           {entry.positive || '（暂无提示词，双击补充）'}
         </div>
-        {entry.tagIds.length > 0 && (
+        {(model || entry.tagIds.length > 0) && (
           <div className="card-tags">
-            {entry.tagIds.slice(0, 3).map((id) => {
+            {model && (
+              <span className="mini-tag model" title={`模型：${model}`}>
+                {model}
+              </span>
+            )}
+            {shownTags.map((id) => {
               const t = tagInfo.get(id)
               if (!t) return null
               return (
@@ -159,7 +166,9 @@ function Card({
                 </span>
               )
             })}
-            {entry.tagIds.length > 3 && <span className="mini-tag more">+{entry.tagIds.length - 3}</span>}
+            {entry.tagIds.length > shownTags.length && (
+              <span className="mini-tag more">+{entry.tagIds.length - shownTags.length}</span>
+            )}
           </div>
         )}
       </div>

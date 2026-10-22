@@ -120,6 +120,7 @@ export interface StoreState {
   doImport: (paths: string[], opts?: ImportOptions) => Promise<ImportResult | null>
   importDialog: (mode: 'files' | 'folder') => Promise<void>
   exportPack: (ids: string[], includeMedia: boolean, name?: string) => Promise<void>
+  exportHtml: (ids: string[], embed: 'thumb' | 'full', name?: string) => Promise<void>
   importPackDialog: () => Promise<void>
   scanDups: () => Promise<void>
   checkUpdate: () => Promise<void>
@@ -551,6 +552,20 @@ export const useStore = create<StoreState>((set, get) => ({
       if (r) get().toast(`已导出 ${r.entries} 条记录（${(r.bytes / 1024 / 1024).toFixed(1)} MB）`, 'ok')
     } catch (e) {
       get().toast('导出失败：' + (e as Error).message, 'err')
+    }
+  },
+
+  async exportHtml(ids, embed, name) {
+    if (!ids.length) return
+    try {
+      const r = await window.pp.exportHtml({ entryIds: ids, embed, suggestedName: name })
+      if (r) get().toast(`已导出单页 HTML（${(r.bytes / 1024 / 1024).toFixed(1)} MB）`, 'ok')
+    } catch (e) {
+      const msg = (e as Error).message.replace(
+        /^Error invoking remote method '[^']+':\s*(Error:\s*)?/,
+        ''
+      )
+      get().toast('导出单页 HTML 失败：' + msg, 'err')
     }
   },
 

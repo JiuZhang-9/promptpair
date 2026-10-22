@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { selectEntries, useStore } from '../store'
 import { Icon } from './ui'
+import ShareHelp from './ShareHelp'
 
 function Dropdown({
   trigger,
@@ -64,6 +65,7 @@ export default function TopBar(): React.ReactElement {
   const importDialog = useStore((s) => s.importDialog)
   const importPackDialog = useStore((s) => s.importPackDialog)
   const exportPack = useStore((s) => s.exportPack)
+  const exportHtml = useStore((s) => s.exportHtml)
   const startCreate = useStore((s) => s.startCreate)
   const setPanel = useStore((s) => s.setPanel)
   const setShortcutsOpen = useStore((s) => s.setShortcutsOpen)
@@ -77,6 +79,7 @@ export default function TopBar(): React.ReactElement {
   const count = useStore((s) => selectEntries(s).length)
 
   const [searchFocus, setSearchFocus] = useState(false)
+  const [shareHelpOpen, setShareHelpOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -298,6 +301,56 @@ export default function TopBar(): React.ReactElement {
                   </div>
                 </button>
                 <div className="dd-sep" />
+                <div className="dd-label">对方不装软件直接看</div>
+                <button
+                  type="button"
+                  className="dd-item"
+                  onClick={() => {
+                    const ids = selectedIds.length
+                      ? selectedIds
+                      : selectEntries(useStore.getState()).map((e) => e.id)
+                    close()
+                    void exportHtml(ids, 'thumb', collName)
+                  }}
+                >
+                  <Icon name="external" size={14} />
+                  <div>
+                    <div>单页 HTML（缩略图）</div>
+                    <small>双击即看、直接复制；文件小</small>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className="dd-item"
+                  onClick={() => {
+                    const ids = selectedIds.length
+                      ? selectedIds
+                      : selectEntries(useStore.getState()).map((e) => e.id)
+                    close()
+                    void exportHtml(ids, 'full', collName)
+                  }}
+                >
+                  <Icon name="image" size={14} />
+                  <div>
+                    <div>单页 HTML（含原图）</div>
+                    <small>文件大；视频只放封面</small>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className="dd-item"
+                  onClick={() => {
+                    close()
+                    setShareHelpOpen(true)
+                  }}
+                >
+                  <Icon name="info" size={14} />
+                  <div>
+                    <div>分享说明</div>
+                    <small>对方怎么打开、复制、导回</small>
+                  </div>
+                </button>
+                <div className="dd-sep" />
                 <button
                   type="button"
                   className="dd-item"
@@ -433,6 +486,8 @@ export default function TopBar(): React.ReactElement {
           </div>
         </div>
       </div>
+
+      <ShareHelp open={shareHelpOpen} onClose={() => setShareHelpOpen(false)} />
     </>
   )
 }

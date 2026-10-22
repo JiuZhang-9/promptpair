@@ -6,9 +6,15 @@
 export interface PreviewAsset {
   rel: string
   thumb?: string
+  /** 库内 asset id，单页 HTML 导出时用来回读文件；预览页不展示 */
+  assetId?: string
+  /** 文件展示名（单页 HTML 里 rel 是 data URL，不能再从路径取文件名） */
+  name?: string
   kind: 'image' | 'video'
   w?: number
   h?: number
+  /** false = 只有封面，不播放原视频（单页 HTML 用） */
+  playable?: boolean
 }
 
 export interface PreviewItem {
@@ -71,6 +77,12 @@ input[type=search]:focus{border-color:var(--fg-4);background:var(--surface-3)}
 .card{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;
   overflow:hidden;cursor:pointer;transition:.14s;display:flex;flex-direction:column}
 .card:hover{border-color:#3a3a40;transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.42)}
+.card-copy{display:inline-flex;align-items:center;align-self:flex-start;margin-top:2px;
+  background:transparent;border:1px solid var(--line-2);color:var(--fg-3);padding:3px 8px;
+  border-radius:4px;font-size:10px;cursor:pointer;transition:.12s;font-family:inherit}
+.card-copy:hover{background:rgba(255,255,255,.07);color:var(--fg);border-color:#3a3a40}
+.hint{font-size:10.5px;color:var(--fg-4);margin-top:8px}
+.video-note{font-size:11px;color:var(--fg-4);margin-top:10px;text-align:center;line-height:1.6}
 .thumb{position:relative;background:var(--surface-3);aspect-ratio:1/1;overflow:hidden}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .thumb .badge{position:absolute;left:8px;top:8px;background:rgba(10,10,11,.72);
@@ -190,6 +202,12 @@ function render(){
       }
       body.appendChild(tw);
     }
+    if(it.positive){
+      const cp = el('button','card-copy');
+      cp.textContent = '复制提示词';
+      cp.onclick = (e)=>{ e.stopPropagation(); copy(it.positive, '提示词'); };
+      body.appendChild(cp);
+    }
     card.appendChild(body);
     card.onclick = ()=>open(it);
     g.appendChild(card);
@@ -200,6 +218,46 @@ let cur = null, curIdx = 0;
 function open(it){ cur = it; curIdx = 0; paint(); $('#modal').classList.add('on'); }
 function close(){ $('#modal').classList.remove('on'); cur=null; }
 
+function copy(text, label){
+  if(!text) return;
+  const done = ()=>toast(label ? '已复制：' + label : '已复制');
+  const fail = ()=>{
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.top = '-1000px';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      ok ? done() : toast('复制失败，请手动选中');
+    }catch(e){ toast('复制失败，请手动选中'); }
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(fail);
+  } else {
+    fail();
+  }
+}
+
+function allText(it){
+  const parts = [];
+  if(it.positive) parts.push(it.positive);
+  if(it.negative) parts.push('Negative: ' + it.negative);
+  if(it.note) parts.push('备注：' + it.note);
+  const ps = [];
+  if(it.model) ps.push('模型: ' + it.model);
+  if(it.size) ps.push('尺寸: ' + it.size);
+  if(it.seed) ps.push('Seed: ' + it.seed);
+  if(it.steps) ps.push('步数: ' + it.steps);
+  if(it.cfg) ps.push('CFG: ' + it.cfg);
+  if(it.sampler) ps.push('采样器: ' + it.sampler);
+  if(ps.length) parts.push(ps.join('\\n'));
+  return parts.join('\\n\\n');
+}
+
 function paint(){
   const it = cur; if(!it) return;
   $('#mTitle').textContent = it.title;
@@ -207,13 +265,24 @@ function paint(){
   const stage = $('#stage'); stage.innerHTML='';
   const a = it.assets[curIdx];
   if(a){
-    if(a.kind==='video'){
+    const canPlay = a.kind === 'video' && a.playable !== false && a.rel;
+    if(canPlay){
       const v = document.createElement('video');
       v.src = a.rel; v.controls = true; v.autoplay = true; v.loop = true;
       if(a.thumb) v.poster = a.thumb;
       stage.appendChild(v);
     } else {
-      const im = document.createElement('img'); im.src = a.rel; stage.appendChild(im);
+      const im = document.createElement('img');
+      im.src = a.thumb || a.rel;
+      if(!im.getAttribute('src')) im.style.display='none';
+      stage.appendChild(im);
+      if(a.kind === 'video'){
+        const note = el('div','video-note');
+        note.textContent = a.playable === false
+          ? '单页分享不含原视频；完整视频请用 .promptpack 查看'
+          : '这个视频没有可用的封面';
+        stage.appendChild(note);
+      }
     }
     if(it.assets.length>1){
       const nav = el('div','nav');
@@ -230,17 +299,22 @@ function paint(){
   const add = (title, node)=>{
     const s = el('div','sect'); const h = el('h4'); h.textContent=title; s.appendChild(h); s.appendChild(node); info.appendChild(s);
   };
-  const pbox = (text)=>{
+  const pbox = (text, label)=>{
     const b = el('div','pbox'); b.textContent = text || '（空）';
     const btn = el('button','btn'); btn.textContent='复制';
-    btn.onclick = ()=>{ navigator.clipboard.writeText(text||'').then(()=>toast('已复制')); };
+    btn.onclick = ()=>copy(text, label);
     const wrap = el('div'); wrap.appendChild(b);
     if(text) wrap.appendChild(btn);
     return wrap;
   };
-  add('正向提示词', pbox(it.positive));
-  if(it.negative) add('负向提示词', pbox(it.negative));
+  add('正向提示词', pbox(it.positive, '正向提示词'));
+  if(it.negative) add('负向提示词', pbox(it.negative, '负向提示词'));
   if(it.note){ const d=el('div'); d.style.cssText='font-size:12.5px;line-height:1.7;color:#c3cbd8;white-space:pre-wrap'; d.textContent=it.note; add('备注', d); }
+
+  const allBtn = el('button','btn');
+  allBtn.textContent = '复制全部（提示词 + 参数）';
+  allBtn.onclick = ()=>copy(allText(it), '全部');
+  add('一次性复制', allBtn);
 
   const params = [];
   if(it.model) params.push(['模型', it.model]);
@@ -255,10 +329,20 @@ function paint(){
     const kv = el('div','kv');
     for(const [k,v] of params){
       const kk = el('div','k'); kk.textContent=k;
-      const vv = el('div','v'); vv.textContent=v;
+      const vv = el('div','v');
+      if(k==='来源页' && /^https?:/i.test(v)){
+        const ln = el('a'); ln.href=v; ln.target='_blank'; ln.rel='noreferrer'; ln.textContent=v; vv.appendChild(ln);
+      } else {
+        vv.textContent=v;
+      }
       kv.append(kk,vv);
     }
-    add('生成参数', kv);
+    const wrap = el('div'); wrap.appendChild(kv);
+    const cp = el('button','btn');
+    cp.textContent='复制参数';
+    cp.onclick=()=>copy(params.map(p=>p[0]+': '+p[1]).join('\\n'), '参数');
+    wrap.appendChild(cp);
+    add('生成参数', wrap);
   }
   if(it.tags.length){
     const tw = el('div','tags');
@@ -271,7 +355,7 @@ function paint(){
   const assetsInfo = el('div','kv');
   it.assets.forEach((a,i)=>{
     const kk = el('div','k'); kk.textContent = '#'+(i+1);
-    const vv = el('div','v'); vv.textContent = [a.kind, a.w&&a.h? a.w+'×'+a.h:'', a.rel.split('/').pop()].filter(Boolean).join(' · ');
+    const vv = el('div','v'); vv.textContent = [a.kind, a.w&&a.h? a.w+'×'+a.h:'', a.name || a.rel.split('/').pop()].filter(Boolean).join(' · ');
     assetsInfo.append(kk,vv);
   });
   add('产物（共 '+it.assets.length+' 个）', assetsInfo);
@@ -333,6 +417,7 @@ export function buildPreviewHtml(pack: PreviewPack): string {
     <input id="q" type="search" placeholder="搜索提示词 / 标题 / 标签…" autocomplete="off">
     <div id="chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
   </div>
+  <div class="hint">点卡片看大图；卡片上的「复制提示词」可直接复制。</div>
 </header>
 <main class="grid" id="grid"></main>
 <footer class="foot">
@@ -343,7 +428,7 @@ export function buildPreviewHtml(pack: PreviewPack): string {
     <div class="phead">
       <div>
         <div style="font-size:14px;font-weight:600" id="mTitle"></div>
-        <div style="font-size:11.5px;color:var(--fg3);margin-top:2px" id="mSub"></div>
+        <div style="font-size:11.5px;color:var(--fg-3);margin-top:2px" id="mSub"></div>
       </div>
       <div class="x" id="close">×</div>
     </div>

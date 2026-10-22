@@ -123,6 +123,18 @@ app.whenReady().then(async () => {
     console.log(`  ✓ 预览页渲染卡片 ${cardCount} 张`)
     if (cardCount === 0) throw new Error('预览页没有渲染出任何卡片')
 
+    const cardCopy = await preview.webContents.executeJavaScript(
+      `document.querySelectorAll('.card-copy').length`
+    )
+    const hasHint = await preview.webContents.executeJavaScript(`!!document.querySelector('.hint')`)
+    const hasCopyAll = await preview.webContents.executeJavaScript(
+      `[...document.querySelectorAll('.btn')].some(b => b.textContent.includes('复制全部'))`
+    )
+    console.log(`  ✓ 卡片复制按钮 ${cardCopy} 个 · 使用提示 ${hasHint ? '有' : '无'} · 复制全部 ${hasCopyAll ? '有' : '无'}`)
+    if (!cardCopy || !hasHint || !hasCopyAll) {
+      throw new Error('预览页缺少卡片复制按钮 / 提示 / 复制全部')
+    }
+
     preview.destroy()
     console.log('\n✅ 分享包端到端验收通过')
   } catch (e) {
