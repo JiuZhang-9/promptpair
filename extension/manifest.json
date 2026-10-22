@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PromptPair · 提示词采集",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "在任意网页上框选一张图/视频，连同你选中的提示词一起收进 PromptPair 素材库。",
   "permissions": ["contextMenus", "activeTab", "scripting", "storage"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
@@ -16,6 +16,10 @@
     "start-pick": {
       "suggested_key": { "default": "Alt+Shift+P" },
       "description": "框选采集到 PromptPair"
+    },
+    "start-shot": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "拖框截图采集到 PromptPair"
     }
   },
   "icons": {

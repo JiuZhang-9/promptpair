@@ -103,8 +103,22 @@ app.whenReady().then(async () => {
       'Ctrl+B 展开左栏'
     )
 
+    const beforeCardW = await js(
+      win,
+      `document.querySelector('.card').getBoundingClientRect().width`
+    )
     await js(win, `document.querySelector('.card')?.click()`)
-    await sleep(500)
+    await sleep(80)
+    const clickW1 = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
+    await sleep(140)
+    const clickW2 = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
+    await sleep(260)
+    const clickW3 = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
+    assert(
+      clickW1 === beforeCardW && clickW2 === beforeCardW && clickW3 === beforeCardW,
+      '点卡片打开详情时卡片不缩放',
+      { beforeCardW, clickW1, clickW2, clickW3 }
+    )
     assert(
       await js(win, `!!document.querySelector('.right-dock.open .detail')`),
       '点卡片打开右侧详情'
@@ -156,12 +170,18 @@ app.whenReady().then(async () => {
 
     await js(win, `document.querySelector('.card')?.click()`)
     await sleep(300)
+    win.focus()
+    win.webContents.focus()
+    await sleep(150)
     clipboard.writeText('sentinel')
     await press(win, 'c', { ctrlKey: true })
     await sleep(250)
     assert(clipboard.readText() === positive, 'Ctrl+C 复制焦点卡片提示词', clipboard.readText())
 
     console.log('\n→ Shift+右键复制…')
+    win.focus()
+    win.webContents.focus()
+    await sleep(150)
     clipboard.writeText('sentinel')
     const shiftRight = await js(win, `
       (() => {
@@ -209,6 +229,9 @@ app.whenReady().then(async () => {
     await sleep(650)
 
     console.log('\n→ Ctrl+滚轮缩放…')
+    win.focus()
+    win.webContents.focus()
+    await sleep(150)
     const beforeSize = await js(win, `window.pp.getConfig().then(c => c.thumbSize)`)
     await js(win, `
       (() => {

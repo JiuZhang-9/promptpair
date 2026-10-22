@@ -93,18 +93,30 @@ chrome.runtime.onInstalled.addListener(() => {
       title: '用 PromptPair 采集选中内容',
       contexts: ['selection', 'image', 'video', 'page']
     })
+    chrome.contextMenus.create({
+      id: 'pp-shot',
+      title: '用 PromptPair 截图采集（拖框）',
+      contexts: ['selection', 'image', 'video', 'page']
+    })
   })
 })
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId !== 'pp-capture' || !tab?.id) return
+  if (!tab?.id) return
+  if (info.menuItemId === 'pp-shot') {
+    await startShot(tab, info.selectionText || '')
+    return
+  }
+  if (info.menuItemId !== 'pp-capture') return
   await startPick(tab, info.selectionText || '')
 })
 
 chrome.commands.onCommand.addListener(async (cmd) => {
-  if (cmd !== 'start-pick') return
+  if (cmd !== 'start-pick' && cmd !== 'start-shot') return
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  if (tab?.id) await startPick(tab, '')
+  if (!tab?.id) return
+  if (cmd === 'start-shot') await startShot(tab, '')
+  else await startPick(tab, '')
 })
 
 /* ── 注入框选器 ── */
@@ -131,6 +143,28 @@ async function startPick(tab, selectionText) {
   }
 }
 
+async function startShot(tab, selectionText) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ['content.js']
+    })
+  } catch (e) {
+    // 已注入
+  }
+  try {
+    await chrome.tabs.sendMessage(tab.id, {
+      type: 'PP_START_SHOT',
+      selection: selectionText,
+      pageUrl: tab.url || '',
+      pageTitle: tab.title || '',
+      platform: guessPlatform(tab.url || '', tab.title || '')
+    })
+  } catch (e) {
+    console.warn('[PromptPair] 无法启动截图', e)
+  }
+}
+
 /* ── 消息总线 ── */
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -140,6 +174,32 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg?.type === 'PP_STATUS') {
     findPort().then((port) => sendResponse({ port }))
+    return true
+  }
+  if (msg?.type === 'PP_SHOT_REGION') {
+    const windowId = sender.tab?.windowId
+    if (windowId == null) {
+      sendResponse({ ok: false, message: '找不到当前标签页' })
+      return false
+    }
+    chrome.tabs
+      .captureVisibleTab(windowId, { format: 'png' })
+      .then((dataUrl) => sendResponse({ ok: true, dataUrl }))
+      .catch((e) => sendResponse({ ok: false, message: '截图失败：' + (e?.message || e) }))
+    return true
+  }
+  if (msg?.type === 'PP_START_SHOT') {
+    ;(async () => {
+      try {
+        const tab = msg.tabId
+          ? await chrome.tabs.get(msg.tabId)
+          : (await chrome.tabs.query({ active: true, currentWindow: true }))[0]
+        if (tab?.id) await startShot(tab, msg.selection || '')
+        sendResponse({ ok: !!tab?.id })
+      } catch (e) {
+        sendResponse({ ok: false, message: String(e?.message || e) })
+      }
+    })()
     return true
   }
   return false

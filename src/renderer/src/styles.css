@@ -173,6 +173,7 @@ select {
   flex: 1;
   min-height: 0;
   display: flex;
+  position: relative;
 }
 
 .boot {
@@ -1277,11 +1278,6 @@ input[type='range']:hover::-webkit-slider-thumb {
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.4s cubic-bezier(0.2, 0.6, 0.3, 1);
-}
-
-.card:hover .card-thumb img {
-  transform: scale(1.02);
 }
 
 .card-noimg {
@@ -1565,25 +1561,30 @@ input[type='range']:hover::-webkit-slider-thumb {
   animation: slideIn 0.15s ease-out;
 }
 
-/* 右栏容器：用宽度过渡收起/展开，面板保持挂载，内部状态不丢 */
+/* 右栏容器：覆盖式抽屉，滑入/滑出，不改变画廊宽度（点卡片不会让卡片重排） */
 .right-dock {
-  width: 0;
-  flex: none;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 410px;
+  z-index: 30;
   display: flex;
   min-height: 0;
   overflow: hidden;
-  border-left: 1px solid transparent;
-  transition: width 0.18s ease, border-color 0.18s ease;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(100%);
+  transition: transform 0.18s ease;
 }
 
 .right-dock.open {
-  width: 410px;
-  border-left-color: var(--line);
+  transform: translateX(0);
 }
 
 .right-dock.open.collapsed {
-  width: 0;
-  border-left-color: transparent;
+  transform: translateX(100%);
 }
 
 .right-dock > .detail {
@@ -1595,7 +1596,7 @@ input[type='range']:hover::-webkit-slider-thumb {
 }
 
 @media (max-width: 1180px) {
-  .right-dock.open {
+  .right-dock {
     width: 364px;
   }
 }

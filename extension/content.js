@@ -13,6 +13,7 @@
   window.__ppPickerInstalled = true
 
   let state = null // { selection, pageUrl, pageTitle, platform, overlay, box, bar }
+  let shotState = null
 
   const HOST_ID = '__pp_picker_host__'
 
@@ -197,8 +198,190 @@
     setTimeout(() => t.remove(), kind === 'err' ? 4200 : 2400)
   }
 
+  /* ────────── 截图采集（拖框） ────────── */
+
+  function stopShot() {
+    const s = shotState
+    shotState = null
+    if (!s) return
+    try {
+      s.host.remove()
+    } catch (e) {
+      /* ignore */
+    }
+    window.removeEventListener('mousemove', s.onMove, true)
+    window.removeEventListener('mouseup', s.onUp, true)
+    window.removeEventListener('keydown', s.onKey, true)
+  }
+
+  function startShot(opts) {
+    if (state) stop()
+    stopShot()
+
+    const host = document.createElement('div')
+    host.id = '__pp_shot_host__'
+    host.style.cssText =
+      'position:fixed;inset:0;z-index:2147483647;cursor:crosshair;user-select:none;'
+
+    const box = document.createElement('div')
+    box.style.cssText = [
+      'position:absolute',
+      'left:0',
+      'top:0',
+      'width:0',
+      'height:0',
+      'border:2px solid #6c8cff',
+      'background:rgba(108,140,255,0.12)',
+      'box-shadow:0 0 0 9999px rgba(8,10,16,0.45)',
+      'border-radius:4px',
+      'display:none',
+      'pointer-events:none'
+    ].join(';')
+
+    const bar = document.createElement('div')
+    bar.style.cssText = [
+      'position:fixed',
+      'left:50%',
+      'top:18px',
+      'transform:translateX(-50%)',
+      'background:rgba(18,22,30,0.96)',
+      'color:#e7ecf5',
+      'font:500 13px/1.5 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif',
+      'padding:10px 16px',
+      'border-radius:12px',
+      'border:1px solid rgba(108,140,255,0.5)',
+      'box-shadow:0 12px 40px rgba(0,0,0,0.5)',
+      'pointer-events:none',
+      'white-space:nowrap'
+    ].join(';')
+    const sel = (opts.selection || '').trim()
+    bar.textContent = sel
+      ? `拖动框选要截图的区域（已捕获 ${sel.length} 字提示词）· Esc 取消`
+      : '拖动框选要截图的区域 · Esc 取消'
+
+    host.append(box, bar)
+    document.documentElement.appendChild(host)
+
+    const s = { host, box, opts, start: null, rect: null }
+    const draw = (x, y) => {
+      if (!s.start) return
+      const left = Math.min(s.start.x, x)
+      const top = Math.min(s.start.y, y)
+      const width = Math.abs(x - s.start.x)
+      const height = Math.abs(y - s.start.y)
+      s.rect = { left, top, width, height }
+      box.style.display = 'block'
+      box.style.left = left + 'px'
+      box.style.top = top + 'px'
+      box.style.width = width + 'px'
+      box.style.height = height + 'px'
+    }
+
+    s.onMove = (e) => draw(e.clientX, e.clientY)
+    s.onUp = (e) => {
+      if (!s.start) return
+      draw(e.clientX, e.clientY)
+      const rect = s.rect
+      s.start = null
+      if (!rect || rect.width < 8 || rect.height < 8) {
+        s.rect = null
+        box.style.display = 'none'
+        return
+      }
+      void finishShot(rect)
+    }
+    s.onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        stopShot()
+        toast('已取消截图', 'err')
+      }
+    }
+
+    host.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return
+      e.preventDefault()
+      e.stopPropagation()
+      s.start = { x: e.clientX, y: e.clientY }
+      s.rect = null
+      draw(e.clientX, e.clientY)
+    })
+    window.addEventListener('mousemove', s.onMove, true)
+    window.addEventListener('mouseup', s.onUp, true)
+    window.addEventListener('keydown', s.onKey, true)
+    shotState = s
+  }
+
+  /** 把标签页截图按拖框区域裁剪出来 */
+  function cropShot(src, rect) {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        try {
+          const scaleX = img.width / window.innerWidth
+          const scaleY = img.height / window.innerHeight
+          const sx = Math.max(0, Math.round(rect.left * scaleX))
+          const sy = Math.max(0, Math.round(rect.top * scaleY))
+          const sw = Math.max(1, Math.min(img.width - sx, Math.round(rect.width * scaleX)))
+          const sh = Math.max(1, Math.min(img.height - sy, Math.round(rect.height * scaleY)))
+          const canvas = document.createElement('canvas')
+          canvas.width = sw
+          canvas.height = sh
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            resolve(null)
+            return
+          }
+          ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh)
+          resolve(canvas.toDataURL('image/png'))
+        } catch (e) {
+          resolve(null)
+        }
+      }
+      img.onerror = () => resolve(null)
+      img.src = src
+    })
+  }
+
+  async function finishShot(rect) {
+    const s = shotState
+    if (!s) return
+    const opts = s.opts
+    stopShot()
+    // 等遮罩层从画面里消失，再让后台截标签页
+    await new Promise((r) => setTimeout(r, 150))
+
+    try {
+      const shot = await chrome.runtime.sendMessage({ type: 'PP_SHOT_REGION' })
+      if (!shot || !shot.ok || !shot.dataUrl) {
+        toast((shot && shot.message) || '截图失败，请重试', 'err')
+        return
+      }
+      const dataUrl = await cropShot(shot.dataUrl, rect)
+      if (!dataUrl) {
+        toast('截图裁剪失败，请重试', 'err')
+        return
+      }
+      const payload = {
+        dataUrl,
+        pageUrl: opts.pageUrl || location.href,
+        pageTitle: opts.pageTitle || document.title,
+        promptText: (opts.selection || '').trim() || guessPrompt(),
+        negativeText: '',
+        platform: opts.platform || '网页采集'
+      }
+      const res = await chrome.runtime.sendMessage({ type: 'PP_CAPTURE', payload })
+      if (res && res.ok) toast('截图已收进 PromptPair 素材库 ✓', 'ok')
+      else toast((res && res.message) || '发送失败', 'err')
+    } catch (e) {
+      toast('截图失败：' + e.message, 'err')
+    }
+  }
+
   function start(opts) {
     if (state) stop()
+    stopShot()
     const host = ensureHost()
 
     const box = document.createElement('div')
@@ -342,6 +525,10 @@
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (msg && msg.type === 'PP_START_PICK') {
         start(msg)
+        sendResponse({ ok: true })
+      }
+      if (msg && msg.type === 'PP_START_SHOT') {
+        startShot(msg)
         sendResponse({ ok: true })
       }
       return false
