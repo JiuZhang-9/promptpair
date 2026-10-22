@@ -46,6 +46,7 @@
 | --- | --- |
 | 一对多 | 同一提示词的多张/多段产物共用一条记录，画廊里横滑查看 |
 | 三种录入 | 拖拽 + 粘贴 / 整目录批量导入 / 浏览器插件框选采集 |
+| 浏览器采集 | 任意网页框选图片/视频；`blob:` 或需要登录态的图片会先转 data URL 再入库 |
 | 自动识别 | 读同名 `.txt`、PNG 内嵌参数（SD WebUI）、ComfyUI `.json`，从文件名猜 seed 与尺寸 |
 | 自动打标 | 按父文件夹名生成标签；自动识别 13 个生成平台 |
 | 连号合并 | `xxx_1.png` `xxx_2.png` 自动合成一条记录 |
@@ -94,6 +95,7 @@ env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-ai.cjs       # AI 全链
 env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-keys.cjs     # 键盘与面板
 env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-ui.cjs       # 布局、复制、缩放、框选
 env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-share.cjs    # 单页 HTML 分享
+env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-capture.cjs  # 浏览器采集接收端
 ```
 
 > **产物目录只有一个：`release/`。**
@@ -170,6 +172,7 @@ Electron 33 · React 18 · TypeScript · Vite (electron-vite) · Zustand · ffla
 | 0.4.0 | 顺手：设置弹窗、左右栏收起、快捷复制、缩放、框选 | ✅ 已发布 |
 | 0.4.1 | 补丁：栏位动画不抖、Shift+右键复制 | ✅ 已发布 |
 | 0.5.0 | 分享：单页 HTML、模型显示与设置 | ✅ 已发布 |
+| 0.5.1 | 补丁：浏览器采集 blob 图片修复 | 🚧 本次发布 |
 | 0.6.0 | 视频：库内播放与封面 | 待排 |
 | 0.7.0 | 找得到：保存视图、相似图搜索 | 待排 |
 | 0.8.0 | 带得走：静态站点、增量分享包 | 待排 |

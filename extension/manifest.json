@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PromptPair · 提示词采集",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "在任意网页上框选一张图/视频，连同你选中的提示词一起收进 PromptPair 素材库。",
   "permissions": ["contextMenus", "activeTab", "scripting", "storage"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],

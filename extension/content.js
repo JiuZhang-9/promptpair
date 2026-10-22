@@ -107,6 +107,33 @@
     return null
   }
 
+  /**
+   * 尽量在页面里把图片读成 data URL。
+   * 典型场景：img.src 是 blob:（生成平台常见），桌面端主进程无法访问；
+   * 或者图片需要页面登录态才能下载。普通跨域图 CORS 不允许时会失败，
+   * 返回 null，继续走原来的 imageUrl 让桌面端带 Referer 去拉。
+   */
+  async function toDataUrl(url) {
+    if (!url) return null
+    if (url.startsWith('data:')) return url
+    try {
+      const res = await fetch(url, { credentials: 'include' })
+      if (!res.ok) return null
+      const blob = await res.blob()
+      if (!/^(image|video)\//.test(blob.type || '')) return null
+      // 本地接收端请求体上限 64MB，留出 base64 膨胀空间
+      if (blob.size > 24 * 1024 * 1024) return null
+      return await new Promise((resolve) => {
+        const fr = new FileReader()
+        fr.onload = () => resolve(typeof fr.result === 'string' ? fr.result : null)
+        fr.onerror = () => resolve(null)
+        fr.readAsDataURL(blob)
+      })
+    } catch (e) {
+      return null
+    }
+  }
+
   /** 尽力猜测页面上的提示词（用户没选文字时的兜底） */
   function guessPrompt() {
     const sels = [
@@ -284,9 +311,12 @@
 
     stop()
 
+    // 先尝试在页面里读成 data URL：blob / 需要 cookie 的图片都能过
+    const inline = await toDataUrl(url)
+    const dataUrl = inline || (url.startsWith('data:') ? url : undefined)
     const payload = {
-      imageUrl: url.startsWith('data:') ? undefined : url,
-      dataUrl: url.startsWith('data:') ? url : undefined,
+      imageUrl: dataUrl ? undefined : url,
+      dataUrl,
       pageUrl: ctx.pageUrl || location.href,
       pageTitle: ctx.pageTitle || document.title,
       promptText: (ctx.selection || '').trim() || guessPrompt(),

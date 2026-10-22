@@ -58,15 +58,40 @@ function snapshot(ctx: AppCtx): { data: LibraryData; root: string; config: AppCo
 }
 
 /** 下载远端图片/视频到内存（浏览器插件采集用） */
-async function fetchToBuffer(url: string): Promise<{ buffer: Buffer; ext: string }> {
-  const res = await net.fetch(url, {
-    headers: {
-      // 部分图床校验 Referer
-      Referer: new URL(url).origin + '/',
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36'
+async function fetchToBuffer(
+  url: string,
+  referer?: string
+): Promise<{ buffer: Buffer; ext: string }> {
+  // 用图片所在页面的地址做 Referer，比用图片域名更接近浏览器的真实请求，
+  // 能减少图床防盗链误判。
+  let ref = referer && /^https?:\/\//i.test(referer) ? referer : ''
+  if (!ref) {
+    try {
+      ref = new URL(url).origin + '/'
+    } catch {
+      ref = ''
     }
-  })
+  }
+
+  let res: Response
+  try {
+    res = await net.fetch(url, {
+      headers: {
+        ...(ref ? { Referer: ref } : {}),
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36'
+      }
+    })
+  } catch (e) {
+    const msg = (e as Error).message || ''
+    console.error('[capture] 图片下载失败', url, msg)
+    if (/ERR_BLOCKED_BY_CLIENT|ERR_UNKNOWN_URL_SCHEME/i.test(msg) || /^blob:/i.test(url)) {
+      throw new Error(
+        '这张图是浏览器临时地址（blob）或受保护地址，桌面端直接下载不了；请更新插件后重试，或换一张图。'
+      )
+    }
+    throw new Error('下载图片失败：' + msg)
+  }
   if (!res.ok) throw new Error(`下载失败 HTTP ${res.status}`)
   const ab = await res.arrayBuffer()
   const buffer = Buffer.from(ab)
@@ -580,7 +605,7 @@ export function registerIpc(ctx: AppCtx): void {
       buffer = r.buffer
       ext = r.ext
     } else if (payload.imageUrl) {
-      const r = await fetchToBuffer(payload.imageUrl)
+      const r = await fetchToBuffer(payload.imageUrl, payload.pageUrl)
       buffer = r.buffer
       ext = r.ext
     } else {
