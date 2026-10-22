@@ -124,6 +124,10 @@ app.whenReady().then(async () => {
     )
 
     console.log('\n→ 复制提示词…')
+    win.show()
+    win.focus()
+    win.webContents.focus()
+    await sleep(250)
     const positive = await js(win, `window.pp.getState().then(s => s.data.entries[0].positive)`)
     assert(!!positive, '演示数据有提示词')
     clipboard.writeText('sentinel')
@@ -144,6 +148,53 @@ app.whenReady().then(async () => {
     await press(win, 'c', { ctrlKey: true })
     await sleep(250)
     assert(clipboard.readText() === positive, 'Ctrl+C 复制焦点卡片提示词', clipboard.readText())
+
+    console.log('\n→ Shift+右键复制…')
+    clipboard.writeText('sentinel')
+    const shiftRight = await js(win, `
+      (() => {
+        const c = document.querySelector('.card')
+        if (!c) return false
+        c.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true, cancelable: true, shiftKey: true, clientX: 20, clientY: 20
+        }))
+        return true
+      })()
+    `)
+    await sleep(350)
+    assert(
+      shiftRight && clipboard.readText() === positive,
+      'Shift+右键复制提示词',
+      clipboard.readText()
+    )
+
+    console.log('\n→ 收起动画不抖动…')
+    const beforeW = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
+    await js(win, `
+      document.body.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'b', ctrlKey: true, bubbles: true, cancelable: true
+      }))
+    `)
+    await sleep(60)
+    const w60 = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
+    await sleep(60)
+    const w120 = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
+    await sleep(60)
+    const w180 = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
+    await sleep(500)
+    const wEnd = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
+    assert(
+      w60 === beforeW && w120 === beforeW && w180 === beforeW,
+      '收起动画期间卡片尺寸不抖动',
+      { beforeW, w60, w120, w180 }
+    )
+    assert(wEnd > 0, '动画结束后完成一次重排', wEnd)
+    await js(win, `
+      document.body.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'b', ctrlKey: true, bubbles: true, cancelable: true
+      }))
+    `)
+    await sleep(650)
 
     console.log('\n→ Ctrl+滚轮缩放…')
     const beforeSize = await js(win, `window.pp.getConfig().then(c => c.thumbSize)`)

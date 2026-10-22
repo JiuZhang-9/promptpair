@@ -61,6 +61,11 @@ function Card({
         e.preventDefault()
         onEdit()
       }}
+      onContextMenu={(e) => {
+        if (!e.shiftKey) return
+        e.preventDefault()
+        onCopy()
+      }}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
@@ -208,12 +213,23 @@ export default function Gallery(): React.ReactElement {
   useLayoutEffect(() => {
     const el = scrollRef.current
     if (!el) return
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const measure = (): void => setViewport({ w: el.clientWidth, h: el.clientHeight })
     const ro = new ResizeObserver(() => {
-      setViewport({ w: el.clientWidth, h: el.clientHeight })
+      // 左右栏收起/展开会连续触发 ResizeObserver。等宽度稳定后再重排一次，
+      // 避免卡片在整个 180ms 动画期间反复缩放。
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        timer = null
+        measure()
+      }, 200)
     })
     ro.observe(el)
-    setViewport({ w: el.clientWidth, h: el.clientHeight })
-    return () => ro.disconnect()
+    measure()
+    return () => {
+      ro.disconnect()
+      if (timer) clearTimeout(timer)
+    }
   }, [])
 
   const cols = Math.max(1, Math.floor((viewport.w - PAD * 2 + GAP) / (thumbSize + GAP)))

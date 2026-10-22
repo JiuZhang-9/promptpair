@@ -9,6 +9,7 @@ const ROWS: { keys: string[]; desc: string }[] = [
   { keys: ['Ctrl', '+', 'B'], desc: '收起 / 展开左栏' },
   { keys: ['Ctrl', '+', 'Shift', '+', 'B'], desc: '收起 / 展开右栏' },
   { keys: ['Ctrl', '+', 'C'], desc: '复制焦点卡片的提示词' },
+  { keys: ['Shift', '+', '右键'], desc: '复制鼠标所指卡片的提示词' },
   { keys: ['Space'], desc: '切换当前项的选中' },
   { keys: ['1', '–', '5'], desc: '给选中的打 N 星' },
   { keys: ['F'], desc: '收藏 / 取消收藏' },
