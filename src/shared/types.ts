@@ -129,6 +129,8 @@ export interface AppConfig {
   theme: ThemeMode
   /** 画廊缩略图边长 px */
   thumbSize: number
+  /** 界面比例：0.9–1.1，默认 1（在已放大的基础字号上再缩放） */
+  uiScale?: number
   /** 近似重复判定阈值（汉明距离 0–64，越小越严格） */
   duplicateThreshold: number
   /** 导入时是否按父文件夹名自动打标 */

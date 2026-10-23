@@ -8,6 +8,7 @@ import { Config, defaultLibraryPath } from './config'
 import { registerIpc, type AppCtx } from './ipc'
 import { initUpdater, onUpdateStatus } from './updater'
 import { startCaptureServer, stopCaptureServer } from './capture'
+import { applyTitleBarOverlay, applyUiScale, clampUiScale, TITLEBAR_HEIGHT } from './appearance'
 
 // ── 单实例：第二次启动直接把已有窗口拉到前台，避免两个进程抢同一个库文件
 const gotLock = app.requestSingleInstanceLock()
@@ -47,7 +48,7 @@ const MIME: Record<string, string> = {
 let win: BrowserWindow | null = null
 let ctx: AppCtx | null = null
 
-function createWindow(): void {
+function createWindow(uiScale = 1): void {
   const isDark = nativeTheme.shouldUseDarkColors
 
   win = new BrowserWindow({
@@ -56,13 +57,13 @@ function createWindow(): void {
     minWidth: 1040,
     minHeight: 640,
     show: false,
-    backgroundColor: isDark ? '#0f1115' : '#f6f7f9',
+    backgroundColor: isDark ? '#0a0a0b' : '#ffffff',
     title: 'PromptPair',
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: isDark ? '#0f1115' : '#f6f7f9',
-      symbolColor: isDark ? '#9aa4b5' : '#4a5262',
-      height: 44
+      color: isDark ? '#0a0a0b' : '#ffffff',
+      symbolColor: isDark ? '#8a8b91' : '#6f7077',
+      height: TITLEBAR_HEIGHT
     },
     autoHideMenuBar: true,
     webPreferences: {
@@ -75,6 +76,9 @@ function createWindow(): void {
     }
   })
 
+  // 页面缩放要在 load 之前应用，避免启动时先闪一下 100%。
+  applyUiScale(win, clampUiScale(uiScale))
+
   win.once('ready-to-show', () => win?.show())
 
   // 某些远程桌面 / 无 GPU 环境不会触发 ready-to-show，窗口会一直藏着。
@@ -83,7 +87,10 @@ function createWindow(): void {
     if (!win || win.isDestroyed()) return
     if (!win.isVisible()) win.show()
   }
-  win.webContents.once('did-finish-load', reveal)
+  win.webContents.once('did-finish-load', () => {
+    applyUiScale(win, ctx?.cfg.data.uiScale ?? 1)
+    reveal()
+  })
   setTimeout(reveal, 2000)
 
   // 外链走系统浏览器，不在应用内开新窗口
@@ -234,21 +241,12 @@ app.whenReady().then(async () => {
   }
 
   registerMediaProtocol(() => lib)
-  createWindow()
+  createWindow(ctx.cfg.data.uiScale ?? 1)
   registerIpc(ctx)
 
   nativeTheme.on('updated', () => {
-    const dark = nativeTheme.shouldUseDarkColors
-    try {
-      win?.setTitleBarOverlay({
-        color: dark ? '#0f1115' : '#f6f7f9',
-        symbolColor: dark ? '#9aa4b5' : '#4a5262',
-        height: 44
-      })
-    } catch {
-      /* 老系统不支持时忽略 */
-    }
-    win?.webContents.send('theme:changed', { dark })
+    applyTitleBarOverlay(win, ctx?.cfg.data.uiScale ?? 1)
+    win?.webContents.send('theme:changed', { dark: nativeTheme.shouldUseDarkColors })
   })
 
   onUpdateStatus((s) => win?.webContents.send('updater:status', s))

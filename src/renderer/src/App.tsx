@@ -192,19 +192,48 @@ export default function App(): React.ReactElement {
         return
       }
       if (e.key >= '1' && e.key <= '5') {
-        if (selectedIds.length) {
+        const state = useStore.getState()
+        const list = selectEntries(state)
+        const ids = state.selectedIds.length
+          ? state.selectedIds
+          : state.focusIndex != null && list[state.focusIndex]
+            ? [list[state.focusIndex].id]
+            : []
+        if (ids.length) {
           e.preventDefault()
-          void patchEntries(selectedIds, { rating: Number(e.key) })
+          void patchEntries(ids, { rating: Number(e.key) }, { optimistic: true, quiet: true })
+        } else {
+          toast('先选中记录，或把鼠标移到卡片上', 'info')
+        }
+        return
+      }
+      if (e.key === '0') {
+        const state = useStore.getState()
+        const list = selectEntries(state)
+        const ids = state.selectedIds.length
+          ? state.selectedIds
+          : state.focusIndex != null && list[state.focusIndex]
+            ? [list[state.focusIndex].id]
+            : []
+        if (ids.length) {
+          e.preventDefault()
+          void patchEntries(ids, { rating: 0 }, { optimistic: true, quiet: true })
         }
         return
       }
       if (e.key.toLowerCase() === 'f') {
-        if (selectedIds.length) {
-          const state = useStore.getState()
-          const chosen = state.data.entries.filter((x) => selectedIds.includes(x.id))
+        const state = useStore.getState()
+        const list = selectEntries(state)
+        const ids = state.selectedIds.length
+          ? state.selectedIds
+          : state.focusIndex != null && list[state.focusIndex]
+            ? [list[state.focusIndex].id]
+            : []
+        if (ids.length) {
+          const chosen = state.data.entries.filter((x) => ids.includes(x.id))
           const next = !(chosen.length > 0 && chosen.every((x) => x.favorite))
           e.preventDefault()
-          void patchEntries(selectedIds, { favorite: next })
+          void patchEntries(ids, { favorite: next }, { optimistic: true, quiet: true })
         }
         return
       }

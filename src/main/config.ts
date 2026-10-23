@@ -5,7 +5,8 @@ import type { AppConfig } from '../shared/types'
 
 const DEFAULTS: Omit<AppConfig, 'libraryPath'> = {
   theme: 'system',
-  thumbSize: 220,
+  thumbSize: 200,
+  uiScale: 1,
   duplicateThreshold: 6,
   autoTagFromFolder: true,
   autoCreateTags: true,
@@ -45,6 +46,11 @@ export class Config {
       ...raw,
       libraryPath: raw.libraryPath && raw.libraryPath.trim() ? raw.libraryPath : defaultLibraryPath()
     }
+    // 0.6.0 把默认卡片宽度从 220 调到 200；只迁移还没保存过 uiScale 的旧配置，
+    // 之后用户自己调过的值不再覆盖。
+    if (raw.uiScale == null && raw.thumbSize === 220) cfg.thumbSize = 200
+    const scale = Number(cfg.uiScale)
+    cfg.uiScale = Number.isFinite(scale) ? Math.max(0.9, Math.min(1.1, scale)) : 1
     return cfg
   }
 
@@ -58,7 +64,12 @@ export class Config {
   }
 
   patch(p: Partial<AppConfig>): AppConfig {
-    Object.assign(this.data, p)
+    const next = { ...p }
+    if (next.uiScale != null) {
+      const n = Number(next.uiScale)
+      next.uiScale = Number.isFinite(n) ? Math.max(0.9, Math.min(1.1, n)) : 1
+    }
+    Object.assign(this.data, next)
     this.save()
     return this.data
   }

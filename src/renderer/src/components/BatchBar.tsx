@@ -7,6 +7,7 @@ import AiTagModal from './AiTagModal'
 export default function BatchBar(): React.ReactElement | null {
   const selectedIds = useStore((s) => s.selectedIds)
   const panel = useStore((s) => s.panel)
+  const detailId = useStore((s) => s.detailId)
   const data = useStore((s) => s.data)
   const clearSelection = useStore((s) => s.clearSelection)
   const selectMany = useStore((s) => s.selectMany)
@@ -41,11 +42,13 @@ export default function BatchBar(): React.ReactElement | null {
     if ((selectedIds.length < 1 || panel === 'tags') && tagModal !== 'none') setTagModal('none')
   }, [selectedIds.length, panel, tagModal, setTagModal])
 
-  // 标签管理面板有自己的选中与操作栏，避免和底部批量条抢空间
+  // 详情打开时底部条改为收窄换行，避免盖住详情；详情本身也有星标/收藏/复制操作
   if (selectedIds.length < 1 || panel === 'tags') return null
 
   const total = entries.length
   const allSelected = selectedIds.length > 0 && selectedIds.length === total
+  const selectedEntries = data.entries.filter((e) => selectedIds.includes(e.id))
+  const allFavorite = selectedEntries.length > 0 && selectedEntries.every((e) => e.favorite)
 
   const applyTags = async (tagIds: string[]): Promise<void> => {
     if (!tagIds.length) return
@@ -70,7 +73,7 @@ export default function BatchBar(): React.ReactElement | null {
 
   return (
     <>
-      <div className="batchbar">
+      <div className={'batchbar' + (detailId ? ' with-detail' : '')}>
         <div className="bb-count">
           <b>{selectedIds.length}</b> 条已选中
         </div>
@@ -104,15 +107,23 @@ export default function BatchBar(): React.ReactElement | null {
           <Stars
             value={0}
             size={13}
-            onChange={(v) => void patchEntries(selectedIds, { rating: v })}
+            onChange={(v) =>
+              void patchEntries(selectedIds, { rating: v }, { optimistic: true, quiet: true })
+            }
           />
         </div>
         <button
           type="button"
           className="bb-btn"
-          onClick={() => void patchEntries(selectedIds, { favorite: true })}
+          onClick={() =>
+            void patchEntries(
+              selectedIds,
+              { favorite: !allFavorite },
+              { optimistic: true, quiet: true }
+            )
+          }
         >
-          <Icon name="star" size={13} /> 收藏
+          <Icon name="star" size={13} /> {allFavorite ? '取消收藏' : '收藏'}
         </button>
         <div className="bb-spacer" />
         <button type="button" className="bb-btn accent" onClick={() => void exportPack(selectedIds, true)}>

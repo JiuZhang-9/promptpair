@@ -8,6 +8,8 @@ export default function DetailPanel(): React.ReactElement | null {
   const openDetail = useStore((s) => s.openDetail)
   const startEdit = useStore((s) => s.startEdit)
   const patchEntries = useStore((s) => s.patchEntries)
+  const filterByTag = useStore((s) => s.filterByTag)
+  const activeTagIds = useStore((s) => s.tagIds)
   const removeEntries = useStore((s) => s.removeEntries)
   const toast = useStore((s) => s.toast)
   const refresh = useStore((s) => s.refresh)
@@ -162,14 +164,35 @@ export default function DetailPanel(): React.ReactElement | null {
           <div className="db-actions">
             <Stars
               value={entry.rating}
-              onChange={(v) => void patchEntries([entry.id], { rating: v })}
+              size={16}
+              onChange={(v) =>
+                void patchEntries([entry.id], { rating: v }, { optimistic: true, quiet: true })
+              }
             />
+            {entry.rating > 0 && (
+              <button
+                type="button"
+                className="clear-rating"
+                title="清除评分"
+                onClick={() =>
+                  void patchEntries([entry.id], { rating: 0 }, { optimistic: true, quiet: true })
+                }
+              >
+                清除
+              </button>
+            )}
             <div className="db-spacer" />
             <button
               type="button"
               className={'icon-btn' + (entry.favorite ? ' fav on' : '')}
               title={entry.favorite ? '取消收藏' : '收藏'}
-              onClick={() => void patchEntries([entry.id], { favorite: !entry.favorite })}
+              onClick={() =>
+                void patchEntries(
+                  [entry.id],
+                  { favorite: !entry.favorite },
+                  { optimistic: true, quiet: true }
+                )
+              }
             >
               <Icon name="star" size={15} />
             </button>
@@ -254,9 +277,15 @@ export default function DetailPanel(): React.ReactElement | null {
                   const t = tags.get(id)
                   if (!t) return null
                   return (
-                    <span key={id} className="pill">
+                    <button
+                      key={id}
+                      type="button"
+                      className={'pill tag' + (activeTagIds.includes(id) ? ' on' : '')}
+                      onClick={() => filterByTag(id)}
+                      title={`只看「${t.name}」`}
+                    >
                       {t.name}
-                    </span>
+                    </button>
                   )
                 })}
               </div>

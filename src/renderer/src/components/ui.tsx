@@ -142,12 +142,17 @@ export function Stars({
           key={i}
           type="button"
           className={'star' + (i <= value ? ' on' : '')}
+          data-star={i}
           disabled={readOnly}
+          style={{ '--i': i } as React.CSSProperties}
           onClick={(e) => {
             e.stopPropagation()
-            if (!readOnly) onChange?.(value === i ? 0 : i)
+            if (!readOnly) onChange?.(i)
           }}
+          onKeyDown={(e) => e.stopPropagation()}
           title={readOnly ? undefined : `${i} 星`}
+          aria-label={`${i} 星`}
+          aria-pressed={i <= value}
         >
           <Icon name="star" size={size} strokeWidth={1.4} />
         </button>

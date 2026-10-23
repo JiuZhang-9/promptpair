@@ -83,6 +83,7 @@ export interface StoreState {
   setQ: (v: string) => void
   setCollection: (id: string | null) => void
   toggleTag: (id: string) => void
+  filterByTag: (id: string) => void
   clearTags: () => void
   setTagMode: (m: 'or' | 'and') => void
   setRatingMin: (n: number) => void
@@ -115,7 +116,11 @@ export interface StoreState {
   setDraft: (d: EntryDraft | null) => void
   saveDraft: () => Promise<boolean>
   removeEntries: (ids: string[]) => Promise<void>
-  patchEntries: (ids: string[], patch: BatchPatch) => Promise<void>
+  patchEntries: (
+    ids: string[],
+    patch: BatchPatch,
+    opts?: { quiet?: boolean; optimistic?: boolean }
+  ) => Promise<void>
 
   doImport: (paths: string[], opts?: ImportOptions) => Promise<ImportResult | null>
   importDialog: (mode: 'files' | 'folder') => Promise<void>
@@ -146,7 +151,8 @@ const EMPTY_LIB: LibraryData = {
 const EMPTY_CFG: AppConfig = {
   libraryPath: '',
   theme: 'system',
-  thumbSize: 220,
+  thumbSize: 200,
+  uiScale: 1,
   duplicateThreshold: 6,
   autoTagFromFolder: true,
   autoCreateTags: true,
@@ -166,6 +172,13 @@ function uid(): string {
 }
 
 let thumbPersistTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 主进程负责页面缩放；这里同步根变量，让标题栏原生按钮预留区反向补偿 */
+function applyUiScaleVar(scale?: number): void {
+  const n = Number(scale)
+  const s = Number.isFinite(n) ? Math.max(0.9, Math.min(1.1, n)) : 1
+  document.documentElement.style.setProperty('--ui-scale', String(s))
+}
 
 export const useStore = create<StoreState>((set, get) => ({
   ready: false,
@@ -216,10 +229,11 @@ export const useStore = create<StoreState>((set, get) => ({
         config: snap.config,
         version: snap.version,
         capturePort: snap.capturePort,
-        thumbSize: snap.config.thumbSize || 220,
+        thumbSize: snap.config.thumbSize || 200,
         sidebarCollapsed: snap.config.sidebarCollapsed ?? false,
         rightPanelCollapsed: snap.config.rightPanelCollapsed ?? false
       })
+      applyUiScaleVar(snap.config.uiScale)
 
       // 主题：跟随系统
       const dark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true
@@ -263,6 +277,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   async refresh(snap) {
     const s = snap ?? ((await window.pp.getState()) as LibrarySnapshot)
+    applyUiScaleVar(s.config.uiScale)
     set((st) => ({
       data: s.data,
       root: s.root,
@@ -280,6 +295,7 @@ export const useStore = create<StoreState>((set, get) => ({
   async applyConfig(patch) {
     const cfg = (await window.pp.patchConfig(patch as Record<string, unknown>)) as AppConfig
     set({ config: cfg })
+    applyUiScaleVar(cfg.uiScale)
     if (patch.theme) applyTheme(cfg.theme, get().systemDark)
     if (typeof patch.thumbSize === 'number') set({ thumbSize: patch.thumbSize })
     if (typeof patch.sidebarCollapsed === 'boolean') set({ sidebarCollapsed: patch.sidebarCollapsed })
@@ -292,6 +308,11 @@ export const useStore = create<StoreState>((set, get) => ({
   toggleTag: (id) =>
     set((s) => ({
       tagIds: s.tagIds.includes(id) ? s.tagIds.filter((t) => t !== id) : [...s.tagIds, id]
+    })),
+  filterByTag: (id) =>
+    set((s) => ({
+      // 卡片标签是“只看这个标签”；再点一次取消。多标签组合仍在左栏操作。
+      tagIds: s.tagIds.length === 1 && s.tagIds[0] === id ? [] : [id]
     })),
   clearTags: () => set({ tagIds: [] }),
   setTagMode: (m) => set({ tagMode: m }),
@@ -516,13 +537,48 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
-  async patchEntries(ids, patch) {
+  async patchEntries(ids, patch, opts = {}) {
     if (!ids.length) return
+    const optimistic = !!opts.optimistic
+    const before = optimistic
+      ? new Map(
+          get()
+            .data.entries.filter((e) => ids.includes(e.id))
+            .map((e) => [e.id, { rating: e.rating, favorite: e.favorite }])
+        )
+      : null
+
+    if (optimistic) {
+      set((s) => ({
+        data: {
+          ...s.data,
+          entries: s.data.entries.map((e) => {
+            if (!ids.includes(e.id)) return e
+            const next = { ...e }
+            if (patch.rating !== undefined) next.rating = patch.rating
+            if (patch.favorite !== undefined) next.favorite = patch.favorite
+            return next
+          })
+        }
+      }))
+    }
+
     try {
       const r = await window.pp.batchPatch(ids, patch)
-      await get().refresh()
-      get().toast(`已更新 ${r.updated} 条`, 'ok')
+      if (!optimistic) await get().refresh()
+      if (!opts.quiet) get().toast(`已更新 ${r.updated} 条`, 'ok')
     } catch (e) {
+      if (before) {
+        set((s) => ({
+          data: {
+            ...s.data,
+            entries: s.data.entries.map((entry) => {
+              const b = before.get(entry.id)
+              return b ? { ...entry, ...b } : entry
+            })
+          }
+        }))
+      }
       get().toast('批量修改失败：' + (e as Error).message, 'err')
     }
   },
@@ -582,6 +638,7 @@ export const useStore = create<StoreState>((set, get) => ({
           detailId: null
         })
         get().toast(`已作为新库打开，导入 ${r.result.entries} 条`, 'ok')
+        applyUiScaleVar(r.snapshot.config.uiScale)
       } else {
         await get().refresh()
         get().toast(`合并完成：${r.result.entries} 条记录`, 'ok')

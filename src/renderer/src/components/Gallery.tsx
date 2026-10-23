@@ -6,7 +6,7 @@ import { Empty, Icon, Stars, copyText } from './ui'
 
 const PAD = 18
 const GAP = 14
-const TEXT_H = 86
+const TEXT_H = 100
 
 interface MarqueeRect {
   left: number
@@ -30,33 +30,42 @@ function Card({
   width,
   assets,
   tagInfo,
+  activeTagIds,
   selected,
   focused,
   onSelect,
   onOpenDetail,
   onEdit,
-  onCopy
+  onCopy,
+  onRate,
+  onToggleFavorite,
+  onTagClick
 }: {
   entry: PromptEntry
   width: number
   assets: Map<string, Asset>
   tagInfo: Map<string, { name: string; color: string }>
+  activeTagIds: string[]
   selected: boolean
   focused: boolean
   onSelect: (e: React.MouseEvent) => void
   onOpenDetail: () => void
   onEdit: () => void
   onCopy: () => void
+  onRate: (v: number) => void
+  onToggleFavorite: () => void
+  onTagClick: (tagId: string) => void
 }): React.ReactElement {
   const first = assets.get(entry.assetIds[0] ?? '')
   const video = first?.kind === 'video'
   const multi = entry.assetIds.length > 1
   const model = entry.params?.model?.trim()
-  const shownTags = entry.tagIds.slice(0, model ? 2 : 3)
+  const shownTags = entry.tagIds.slice(0, model ? 1 : 2)
 
   return (
     <div
       className={'card' + (selected ? ' sel' : '') + (focused ? ' focused' : '')}
+      data-id={entry.id}
       style={{ width }}
       onClick={onSelect}
       onDoubleClick={(e) => {
@@ -71,6 +80,7 @@ function Card({
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
+        if ((e.target as HTMLElement).closest('button')) return
         if (e.key === 'Enter') onOpenDetail()
       }}
       title={entry.title}
@@ -93,11 +103,19 @@ function Card({
             )}
             {multi && <span className="badge count">{entry.assetIds.length}</span>}
           </span>
-          {entry.favorite && (
-            <span className="badge fav">
-              <Icon name="star" size={10} strokeWidth={2.4} />
-            </span>
-          )}
+          <button
+            type="button"
+            className={'card-fav' + (entry.favorite ? ' on' : '')}
+            title={entry.favorite ? '取消收藏' : '收藏'}
+            aria-label={entry.favorite ? '取消收藏' : '收藏'}
+            aria-pressed={entry.favorite}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleFavorite()
+            }}
+          >
+            <Icon name="star" size={14} />
+          </button>
         </div>
 
         <div className="card-actions">
@@ -138,11 +156,23 @@ function Card({
           </button>
         </div>
 
-        {entry.rating > 0 && (
-          <div className="card-stars">
-            <Stars value={entry.rating} readOnly size={9} />
-          </div>
-        )}
+        <div className={'card-stars' + (entry.rating > 0 ? ' has-rating' : '')}>
+          <Stars value={entry.rating} size={13} onChange={(v) => onRate(v)} />
+          {entry.rating > 0 && (
+            <button
+              type="button"
+              className="card-clear"
+              title="清除评分"
+              aria-label="清除评分"
+              onClick={(e) => {
+                e.stopPropagation()
+                onRate(0)
+              }}
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="card-info">
@@ -160,10 +190,20 @@ function Card({
             {shownTags.map((id) => {
               const t = tagInfo.get(id)
               if (!t) return null
+              const active = activeTagIds.includes(id)
               return (
-                <span key={id} className="mini-tag">
+                <button
+                  key={id}
+                  type="button"
+                  className={'mini-tag' + (active ? ' on' : '')}
+                  title={`只看「${t.name}」`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onTagClick(id)
+                  }}
+                >
                   {t.name}
-                </span>
+                </button>
               )
             })}
             {entry.tagIds.length > shownTags.length && (
@@ -182,6 +222,9 @@ export default function Gallery(): React.ReactElement {
   const selectedIds = useStore((s) => s.selectedIds)
   const focusIndex = useStore((s) => s.focusIndex)
   const setFocusIndex = useStore((s) => s.setFocusIndex)
+  const tagIds = useStore((s) => s.tagIds)
+  const filterByTag = useStore((s) => s.filterByTag)
+  const patchEntries = useStore((s) => s.patchEntries)
   const q = useStore((s) => s.q)
   const resetFilters = useStore((s) => s.resetFilters)
   const select = useStore((s) => s.select)
@@ -542,6 +585,7 @@ export default function Gallery(): React.ReactElement {
                       width={cardW}
                       assets={assets}
                       tagInfo={tagInfo}
+                      activeTagIds={tagIds}
                       selected={selectedIds.includes(entry.id)}
                       focused={focusIndex === index}
                       onSelect={(e) => {
@@ -567,6 +611,17 @@ export default function Gallery(): React.ReactElement {
                           .then(() => toast('已复制提示词', 'ok'))
                           .catch(() => toast('复制失败，请手动选中文本', 'err'))
                       }}
+                      onRate={(v) =>
+                        void patchEntries([entry.id], { rating: v }, { optimistic: true, quiet: true })
+                      }
+                      onToggleFavorite={() =>
+                        void patchEntries(
+                          [entry.id],
+                          { favorite: !entry.favorite },
+                          { optimistic: true, quiet: true }
+                        )
+                      }
+                      onTagClick={(id) => filterByTag(id)}
                     />
                     )
                   })}

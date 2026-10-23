@@ -74,7 +74,7 @@ export default function SettingsPanel(): React.ReactElement {
     <Modal
       open={panel === 'settings'}
       onClose={() => setPanel('none')}
-      width={780}
+      width={820}
       className="settings-modal"
       label="设置"
     >
@@ -146,6 +146,19 @@ export default function SettingsPanel(): React.ReactElement {
               step={20}
               value={config.thumbSize}
               onChange={(e) => void applyConfig({ thumbSize: Number(e.target.value) })}
+            />
+          </Row>
+          <Row
+            label="界面大小"
+            desc={`在已放大的基础字号上再缩放 · ${Math.round((config.uiScale ?? 1) * 100)}%`}
+          >
+            <input
+              type="range"
+              min={90}
+              max={110}
+              step={5}
+              value={Math.round((config.uiScale ?? 1) * 100)}
+              onChange={(e) => void applyConfig({ uiScale: Number(e.target.value) / 100 })}
             />
           </Row>
         </div>

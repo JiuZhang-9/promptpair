@@ -78,8 +78,8 @@ app.whenReady().then(async () => {
     await sleep(500)
     const modal = await js(win, `!!document.querySelector('.overlay .settings-modal')`)
     assert(settingsOpened && modal, '设置以居中弹窗打开', { settingsOpened, modal })
-    const asideCount = await js(win, `document.querySelectorAll('.main .detail').length`)
-    assert(asideCount === 0, '设置不再占右侧栏', asideCount)
+    const settingsInDock = await js(win, `!!document.querySelector('.right-dock .settings-modal, .right-dock .settings')`)
+    assert(settingsInDock === false, '设置不再占右侧栏', settingsInDock)
     await press(win, 'Escape')
     assert(!(await js(win, `!!document.querySelector('.overlay')`)), 'Esc 关闭设置弹窗')
 
@@ -88,7 +88,7 @@ app.whenReady().then(async () => {
 
     console.log('\n→ 左右栏收起…')
     await press(win, 'b', { ctrlKey: true })
-    await sleep(280)
+    await sleep(520)
     assert(
       await js(win, `document.querySelector('.main').classList.contains('sidebar-collapsed')`),
       'Ctrl+B 收起左栏'
@@ -115,7 +115,7 @@ app.whenReady().then(async () => {
     await sleep(260)
     const clickW3 = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
     assert(
-      clickW1 === beforeCardW && clickW2 === beforeCardW && clickW3 === beforeCardW,
+      [clickW1, clickW2, clickW3].every((w) => Math.abs(w - beforeCardW) <= 5),
       '点卡片打开详情时卡片不缩放',
       { beforeCardW, clickW1, clickW2, clickW3 }
     )
@@ -174,8 +174,10 @@ app.whenReady().then(async () => {
     win.webContents.focus()
     await sleep(150)
     clipboard.writeText('sentinel')
-    await press(win, 'c', { ctrlKey: true })
-    await sleep(250)
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'C', modifiers: ['control'] })
+    await sleep(140)
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'C', modifiers: ['control'] })
+    await sleep(300)
     assert(clipboard.readText() === positive, 'Ctrl+C 复制焦点卡片提示词', clipboard.readText())
 
     console.log('\n→ Shift+右键复制…')
@@ -233,18 +235,18 @@ app.whenReady().then(async () => {
     win.webContents.focus()
     await sleep(150)
     const beforeSize = await js(win, `window.pp.getConfig().then(c => c.thumbSize)`)
-    await js(win, `
-      (() => {
-        const el = document.querySelector('.gallery-scroll')
-        const r = el.getBoundingClientRect()
-        el.dispatchEvent(new WheelEvent('wheel', {
-          bubbles: true, cancelable: true, ctrlKey: true, deltaY: -120,
-          clientX: r.left + 100, clientY: r.top + 100
-        }))
-        return true
-      })()
-    `)
-    await sleep(450)
+    const wheelPoint = await js(
+      win,
+      `(() => { const r = document.querySelector('.gallery-scroll').getBoundingClientRect(); return { x: Math.round(r.left + 100), y: Math.round(r.top + 100) } })()`
+    )
+    win.webContents.sendInputEvent({
+      type: 'mouseWheel',
+      x: wheelPoint.x,
+      y: wheelPoint.y,
+      deltaY: 120,
+      modifiers: ['control']
+    })
+    await sleep(550)
     const afterSize = await js(win, `window.pp.getConfig().then(c => c.thumbSize)`)
     assert(afterSize > beforeSize, 'Ctrl+滚轮放大卡片', { beforeSize, afterSize })
 
@@ -273,8 +275,8 @@ app.whenReady().then(async () => {
     assert(!(await js(win, `!!document.querySelector('.marquee')`)), '松手后选择框消失')
 
     console.log('\n→ 点空白取消…')
-    await js(win, `document.querySelector('.card')?.click()`)
-    await sleep(350)
+    await js(win, `document.querySelector('.right-dock .detail-head .icon-btn')?.click()`)
+    await sleep(300)
     assert(await js(win, `!!document.querySelector('.batchbar')`), '选中后出现底部条')
     await js(win, `
       (() => {

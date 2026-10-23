@@ -22,6 +22,9 @@ build/shots/
 # 视觉验收用的演示库与临时 userData
 .smoke/
 
+# 一次性 UI 原型（本地验收用，不进正式仓库）
+prototype/
+
 # 编辑器 / 系统
 .vscode/*
 !.vscode/extensions.json

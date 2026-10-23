@@ -310,7 +310,8 @@ fs.writeFileSync(
     {
       libraryPath: ROOT,
       theme: 'dark',
-      thumbSize: 220,
+      thumbSize: 200,
+      uiScale: 1,
       duplicateThreshold: 6,
       autoTagFromFolder: true,
       autoCreateTags: true,

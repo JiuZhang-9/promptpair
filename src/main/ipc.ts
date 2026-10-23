@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import os from 'node:os'
-import { app, BrowserWindow, clipboard, dialog, ipcMain, net, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, net, shell } from 'electron'
 import type {
   AppConfig,
   BatchPatch,
@@ -24,6 +24,7 @@ import { suggestTags, testAiConnection } from './ai'
 import { startCaptureServer, getCapturePort } from './capture'
 import { checkForUpdatesManually, getUpdateStatus, quitAndInstall } from './updater'
 import { APP_VERSION } from './version'
+import { applyUiScale } from './appearance'
 
 export interface AppCtx {
   win: BrowserWindow | null
@@ -176,7 +177,14 @@ export function registerIpc(ctx: AppCtx): void {
     return snapshot(ctx)
   })
 
-  ipcMain.handle('config:patch', (_e, patch: Partial<AppConfig>) => ctx.cfg.patch(patch))
+  ipcMain.handle('config:patch', (_e, patch: Partial<AppConfig>) => {
+    const cfg = ctx.cfg.patch(patch)
+    if (patch.theme != null) nativeTheme.themeSource = cfg.theme
+    if (patch.uiScale != null || patch.theme != null) {
+      applyUiScale(ctx.win, cfg.uiScale ?? 1)
+    }
+    return cfg
+  })
 
   ipcMain.handle('config:get', () => ctx.cfg.data)
 
