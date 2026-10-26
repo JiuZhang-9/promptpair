@@ -87,12 +87,29 @@ app.whenReady().then(async () => {
     assert(modelChips > 0, '卡片显示生成模型徽标', modelChips)
 
     console.log('\n→ 左右栏收起…')
+    const sideW0 = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
+    const sideCols0 = await js(
+      win,
+      `document.querySelector('.vrow')?.children.length ?? 0`
+    )
     await press(win, 'b', { ctrlKey: true })
     await sleep(520)
     assert(
       await js(win, `document.querySelector('.main').classList.contains('sidebar-collapsed')`),
       'Ctrl+B 收起左栏'
     )
+    const sideW1 = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
+    assert(
+      Math.abs(sideW1 - sideW0) <= 0.5,
+      '收起左栏后卡片宽度不变（不缩放）',
+      { sideW0, sideW1 }
+    )
+    await sleep(200)
+    const sideCols1 = await js(
+      win,
+      `document.querySelector('.vrow')?.children.length ?? 0`
+    )
+    assert(sideCols1 >= sideCols0, '收起左栏后列数只增不减', { sideCols0, sideCols1 })
     const cfgSide = await js(win, `window.pp.getConfig().then(c => c.sidebarCollapsed)`)
     assert(cfgSide === true, '左栏状态写入配置', cfgSide)
     await shot(win, '17-sidebar-collapsed')
@@ -101,6 +118,12 @@ app.whenReady().then(async () => {
     assert(
       !(await js(win, `document.querySelector('.main').classList.contains('sidebar-collapsed')`)),
       'Ctrl+B 展开左栏'
+    )
+    const sideW2 = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
+    assert(
+      Math.abs(sideW2 - sideW0) <= 0.5,
+      '展开左栏后卡片宽度不变（不缩放）',
+      { sideW0, sideW2 }
     )
 
     const beforeCardW = await js(

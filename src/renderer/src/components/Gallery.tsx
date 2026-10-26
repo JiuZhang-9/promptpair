@@ -320,11 +320,9 @@ export default function Gallery(): React.ReactElement {
     }
   }, [])
 
-  const cols = Math.max(1, Math.floor((viewport.w - PAD * 2 + GAP) / (thumbSize + GAP)))
-  const cardW = Math.max(
-    90,
-    Math.floor((viewport.w - PAD * 2 - GAP * (cols - 1)) / cols)
-  )
+  // 卡片宽度固定为缩略图尺寸：左右栏收放只增减列数，卡片本身不缩放
+  const cardW = Math.max(90, thumbSize)
+  const cols = Math.max(1, Math.floor((viewport.w - PAD * 2 + GAP) / (cardW + GAP)))
   const rowH = cardW + TEXT_H + GAP
   const rows = Math.ceil(entries.length / cols)
   const totalH = rows * rowH + PAD * 2

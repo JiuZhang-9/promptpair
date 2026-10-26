@@ -1,7 +1,7 @@
 {
   "name": "promptpair",
   "productName": "PromptPair",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "PromptPair - 把提示词与它产出的图片/视频配成一对，本地管理、打标分类、打包分享",
   "author": {
     "name": "PromptPair"
