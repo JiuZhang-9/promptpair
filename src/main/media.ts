@@ -5,6 +5,7 @@ import { nativeImage, NativeImage } from 'electron'
 import type { Asset, AssetKind } from '../shared/types'
 import { kindOfExt } from '../shared/types'
 import { Library, newId, nowIso, shardPath } from './library'
+import { readVideoMeta } from './video-meta'
 
 export function sha256File(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -132,6 +133,7 @@ export async function addFileToLibrary(
   const thumbAbs = lib.abs(thumbRel)
   let width: number | undefined
   let height: number | undefined
+  let duration: number | undefined
   let phash: string | undefined
 
   const t = await buildThumb(absMedia, thumbAbs)
@@ -150,9 +152,12 @@ export async function addFileToLibrary(
       /* ignore */
     }
   } else {
-    // 视频无法可靠读取原始分辨率，用抽帧尺寸占位并标注
-    width = t.width
-    height = t.height
+    // 视频：先解析容器拿真实时长与分辨率（只读容器头，无 ffmpeg）；
+    // 解析不了（不支持/损坏）再回退到抽帧尺寸占位——抽帧图被缩放过，尺寸是不准的
+    const meta = await readVideoMeta(absMedia, ext)
+    width = meta?.width ?? t.width
+    height = meta?.height ?? t.height
+    duration = meta?.seconds
     phash = t.img ? dhashOf(t.img) : undefined
   }
 
@@ -164,6 +169,7 @@ export async function addFileToLibrary(
     bytes: stat.size,
     width,
     height,
+    duration,
     relPath,
     thumbRel: fs.existsSync(thumbAbs) ? thumbRel : undefined,
     phash,
@@ -174,18 +180,29 @@ export async function addFileToLibrary(
   return { asset, reused: false }
 }
 
-/** 给历史资源补齐缩略图/哈希（老库升级或早期失败时用） */
+/** 给历史资源补齐缩略图/哈希/视频元数据（老库升级或早期失败时用） */
 export async function repairAsset(lib: Library, asset: Asset): Promise<Asset> {
-  if (asset.thumbRel && asset.phash) return asset
   const absMedia = lib.abs(asset.relPath)
+  const needVideoMeta = asset.kind === 'video' && (!asset.duration || !asset.width || !asset.height)
+  if (asset.thumbRel && asset.phash && !needVideoMeta) return asset
   if (!fs.existsSync(absMedia)) return asset
-  const thumbRel = asset.thumbRel ?? shardPath('thumbs', asset.sha256, '.jpg')
-  const t = await buildThumb(absMedia, lib.abs(thumbRel))
-  if (!asset.thumbRel && fs.existsSync(lib.abs(thumbRel))) asset.thumbRel = thumbRel
-  if (!asset.phash) asset.phash = t.img ? dhashOf(t.img) : undefined
-  if (asset.kind === 'video' && (!asset.width || !asset.height)) {
-    asset.width = t.width
-    asset.height = t.height
+
+  if (!asset.thumbRel || !asset.phash) {
+    const thumbRel = asset.thumbRel ?? shardPath('thumbs', asset.sha256, '.jpg')
+    const t = await buildThumb(absMedia, lib.abs(thumbRel))
+    if (!asset.thumbRel && fs.existsSync(lib.abs(thumbRel))) asset.thumbRel = thumbRel
+    if (!asset.phash) asset.phash = t.img ? dhashOf(t.img) : undefined
+  }
+  if (needVideoMeta) {
+    const meta = await readVideoMeta(absMedia, asset.ext)
+    if (meta?.seconds) asset.duration = meta.seconds
+    if (meta?.width && meta?.height) {
+      // 只回填当前宽高缺失或是抽帧占位（512 内缩放值）的情况
+      if (!asset.width || !asset.height || (asset.width <= 512 && asset.height <= 512)) {
+        asset.width = meta.width
+        asset.height = meta.height
+      }
+    }
   }
   lib.touch()
   return asset

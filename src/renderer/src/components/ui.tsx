@@ -327,3 +327,19 @@ export function formatDate(iso: string): string {
   const p = (n: number): string => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
+
+/** 视频时长，紧凑钟表式：0:05 / 1:23 / 1:02:03（卡片角标用） */
+export function formatClock(sec: number): string {
+  if (!Number.isFinite(sec) || sec < 0) return ''
+  const s = Math.round(sec)
+  const p = (n: number): string => String(n).padStart(2, '0')
+  if (s >= 3600) return `${Math.floor(s / 3600)}:${p(Math.floor((s % 3600) / 60))}:${p(s % 60)}`
+  return `${Math.floor(s / 60)}:${p(s % 60)}`
+}
+
+/** 视频时长，文案式：5.1 秒 / 1:23 / 1:02:03（详情列表用） */
+export function formatDuration(sec: number): string {
+  if (!Number.isFinite(sec) || sec < 0) return ''
+  if (sec < 60) return `${sec.toFixed(1)} 秒`
+  return formatClock(sec)
+}

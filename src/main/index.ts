@@ -57,11 +57,11 @@ function createWindow(uiScale = 1): void {
     minWidth: 1040,
     minHeight: 640,
     show: false,
-    backgroundColor: isDark ? '#0a0a0b' : '#ffffff',
+    backgroundColor: isDark ? '#131315' : '#f7f7f8',
     title: 'PromptPair',
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: isDark ? '#0a0a0b' : '#ffffff',
+      color: isDark ? '#131315' : '#f7f7f8',
       symbolColor: isDark ? '#8a8b91' : '#6f7077',
       height: TITLEBAR_HEIGHT
     },

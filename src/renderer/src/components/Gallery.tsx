@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Asset, PromptEntry } from '../../../shared/types'
-import { assetMap, selectEntries, tagMap, thumbUrl, useStore, groupMap } from '../store'
-import { Empty, Icon, Stars, copyText } from './ui'
+import { assetMap, selectEntries, tagMap, thumbUrl, mediaUrl, useStore, groupMap } from '../store'
+import { Empty, Icon, Stars, copyText, formatClock } from './ui'
 
 const PAD = 18
 const GAP = 14
@@ -62,6 +62,21 @@ function Card({
   const model = entry.params?.model?.trim()
   const shownTags = entry.tagIds.slice(0, model ? 1 : 2)
 
+  const [previewing, setPreviewing] = useState(false)
+  const previewRef = useRef<HTMLVideoElement | null>(null)
+
+  useEffect(() => {
+    if (!previewing) return
+    // 以播放进度封顶 3 秒（不是墙钟：媒体加载慢时不至于还没开始播就被暂停）
+    const v = previewRef.current
+    if (!v) return
+    const onTime = (): void => {
+      if (v.currentTime >= 3) v.pause()
+    }
+    v.addEventListener('timeupdate', onTime)
+    return () => v.removeEventListener('timeupdate', onTime)
+  }, [previewing])
+
   return (
     <div
       className={'card' + (selected ? ' sel' : '') + (focused ? ' focused' : '')}
@@ -85,7 +100,12 @@ function Card({
       }}
       title={entry.title}
     >
-      <div className="card-thumb" style={{ height: width }}>
+      <div
+        className="card-thumb"
+        style={{ height: width }}
+        onMouseEnter={video ? () => setPreviewing(true) : undefined}
+        onMouseLeave={video ? () => setPreviewing(false) : undefined}
+      >
         {first ? (
           <img src={thumbUrl(first)} alt="" loading="lazy" decoding="async" draggable={false} />
         ) : (
@@ -93,6 +113,22 @@ function Card({
             <Icon name="image" size={22} />
           </div>
         )}
+
+        {previewing && video && first ? (
+          <video
+            ref={previewRef}
+            className="card-preview"
+            src={mediaUrl(first)}
+            muted
+            playsInline
+            autoPlay
+            onError={() => setPreviewing(false)}
+          />
+        ) : null}
+
+        {video && first?.duration ? (
+          <span className="card-dur">{formatClock(first.duration)}</span>
+        ) : null}
 
         <div className="card-badges">
           <span className="badge-left">

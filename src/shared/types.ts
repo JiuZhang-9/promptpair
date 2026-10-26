@@ -27,6 +27,8 @@ export interface Asset {
   bytes: number
   width?: number
   height?: number
+  /** 视频时长（秒，浮点）；仅 kind = video 有。老库没有此字段，repair 会回填 */
+  duration?: number
   /** 相对库根的路径，正斜杠，如 media/ab/abcd….png */
   relPath: string
   /** 缩略图相对路径；视频为抽帧结果 */

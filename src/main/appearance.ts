@@ -17,7 +17,7 @@ export function applyTitleBarOverlay(win: BrowserWindow | null, scale: number): 
   const dark = nativeTheme.shouldUseDarkColors
   try {
     win.setTitleBarOverlay({
-      color: dark ? '#0a0a0b' : '#ffffff',
+      color: dark ? '#131315' : '#f7f7f8',
       symbolColor: dark ? '#8a8b91' : '#6f7077',
       height: Math.round(TITLEBAR_HEIGHT * clampUiScale(scale))
     })

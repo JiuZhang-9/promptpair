@@ -6,33 +6,34 @@
 
 :root,
 [data-theme='dark'] {
-  --bg: #0a0a0b;
-  --surface: #0f0f11;
-  --surface-2: #141416;
-  --surface-3: #1b1b1e;
-  --surface-4: #232327;
-  --line: #1f1f23;
-  --line-2: #2b2b30;
-  --line-3: #3a3a40;
+  /* 端点不顶死：黑不上纯黑、白不下纯白，层次靠中间灰阶过渡 */
+  --bg: #131315;
+  --surface: #18181b;
+  --surface-2: #1e1e21;
+  --surface-3: #26262a;
+  --surface-4: #303035;
+  --line: #2a2a2f;
+  --line-2: #37373d;
+  --line-3: #46464d;
 
-  --fg: #f4f4f5;
-  --fg-2: #a8a9ae;
-  --fg-3: #77787e;
-  --fg-4: #55565c;
+  --fg: #e9e9eb;
+  --fg-2: #a9aab0;
+  --fg-3: #7e7f86;
+  --fg-4: #606168;
 
-  --invert: #f4f4f5;
-  --invert-fg: #0a0a0b;
+  --invert: #e3e3e6;
+  --invert-fg: #17171a;
 
   --danger: #e5484d;
   --ok: #3dd68c;
   --warn: #e5a94d;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.42);
-  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.62);
-  --scrim: rgba(6, 6, 7, 0.66);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(10, 10, 12, 0.62);
 
-  --stage: #060607;
+  --stage: #0f0f11;
   --hl: rgba(255, 255, 255, 0.05);
   --hl-strong: rgba(255, 255, 255, 0.09);
 
@@ -44,22 +45,22 @@
 }
 
 [data-theme='light'] {
-  --bg: #ffffff;
-  --surface: #fafafb;
-  --surface-2: #f5f5f7;
-  --surface-3: #ededf0;
-  --surface-4: #e3e3e7;
-  --line: #ebebee;
-  --line-2: #dcdce0;
-  --line-3: #c6c6cc;
+  --bg: #f7f7f8;
+  --surface: #fcfcfd;
+  --surface-2: #f2f2f4;
+  --surface-3: #eaeaee;
+  --surface-4: #dfdfe4;
+  --line: #e8e8ec;
+  --line-2: #d9d9de;
+  --line-3: #c3c3ca;
 
-  --fg: #0a0a0b;
-  --fg-2: #55565c;
-  --fg-3: #85868c;
-  --fg-4: #adaeb3;
+  --fg: #1c1c1f;
+  --fg-2: #585a60;
+  --fg-3: #88898f;
+  --fg-4: #aeb0b5;
 
-  --invert: #0a0a0b;
-  --invert-fg: #ffffff;
+  --invert: #1c1c1f;
+  --invert-fg: #f7f7f8;
 
   --danger: #d93d42;
   --ok: #15915f;
@@ -70,7 +71,7 @@
   --shadow-lg: 0 24px 64px rgba(16, 16, 20, 0.18);
   --scrim: rgba(240, 240, 242, 0.7);
 
-  --stage: #f2f2f4;
+  --stage: #efeff1;
   --hl: rgba(10, 10, 12, 0.04);
   --hl-strong: rgba(10, 10, 12, 0.07);
 }
@@ -1286,6 +1287,17 @@ input[type='range']:hover::-webkit-slider-thumb {
   display: block;
 }
 
+/* 视频卡片悬停预览（3 秒后停在当前帧） */
+.card-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--stage);
+  pointer-events: none;
+}
+
 .card-noimg {
   width: 100%;
   height: 100%;
@@ -1336,6 +1348,24 @@ input[type='range']:hover::-webkit-slider-thumb {
 
 .badge.play {
   padding: 0;
+}
+
+/* 视频时长角标：右下角，钟表式，与左上播放徽标呼应 */
+.card-dur {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 1px 6px;
+  border-radius: var(--r-xs);
+  background: rgba(10, 10, 11, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
 }
 
 .card-fav {

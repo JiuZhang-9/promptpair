@@ -73,6 +73,15 @@ app.whenReady().then(async () => {
   win.setSize(1440, 860)
 
   try {
+    // 冷启动后第一帧合成器经常还没就绪，capturePage 会拿到空帧：
+    // 先丢弃式空拍一张并等一拍，避免 01 号永远是 0 KB
+    try {
+      await win.webContents.capturePage()
+    } catch {
+      /* ignore */
+    }
+    await sleep(600)
+
     await shot(win, '01-gallery')
 
     // 局部放大：检查卡片排版细节

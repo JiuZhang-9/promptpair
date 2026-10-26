@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { assetMap, collMap, groupMap, mediaUrl, tagMap, thumbUrl, useStore } from '../store'
-import { Icon, Stars, copyText, formatBytes, formatDate } from './ui'
+import { Icon, Stars, copyText, formatBytes, formatDate, formatDuration } from './ui'
 
 export default function DetailPanel(): React.ReactElement | null {
   const detailId = useStore((s) => s.detailId)
@@ -351,6 +351,7 @@ export default function DetailPanel(): React.ReactElement | null {
                     <span className="ellipsis">{a.relPath.split('/').pop()}</span>
                     <em>
                       {a.width && a.height ? `${a.width}×${a.height} · ` : ''}
+                      {a.kind === 'video' && a.duration ? `${formatDuration(a.duration)} · ` : ''}
                       {formatBytes(a.bytes)}
                     </em>
                   </button>
