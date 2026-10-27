@@ -1,7 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { selectEntries, useStore } from '../store'
 import { Icon } from './ui'
 import ShareHelp from './ShareHelp'
+import SearchHelp from './SearchHelp'
+import { parseQuery } from '../query'
 
 function Dropdown({
   trigger,
@@ -61,6 +63,9 @@ export default function TopBar(): React.ReactElement {
   const collectionId = useStore((s) => s.collectionId)
   const tagIds = useStore((s) => s.tagIds)
   const panel = useStore((s) => s.panel)
+  const similarTo = useStore((s) => s.similarTo)
+  const similarLabel = useStore((s) => s.similarLabel)
+  const clearSimilar = useStore((s) => s.clearSimilar)
 
   const importDialog = useStore((s) => s.importDialog)
   const importPackDialog = useStore((s) => s.importPackDialog)
@@ -81,6 +86,8 @@ export default function TopBar(): React.ReactElement {
 
   const [searchFocus, setSearchFocus] = useState(false)
   const [shareHelpOpen, setShareHelpOpen] = useState(false)
+  const [searchHelpOpen, setSearchHelpOpen] = useState(false)
+  const parsedQuery = useMemo(() => parseQuery(q), [q])
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -497,7 +504,7 @@ export default function TopBar(): React.ReactElement {
           <input
             ref={searchRef}
             value={q}
-            placeholder="搜索提示词、标题、标签、模型…（Ctrl+F）"
+            placeholder="搜索 / tag:标签 / model:模型 / rating:>=4（Ctrl+F）"
             onChange={(e) => setQ(e.target.value)}
             onFocus={() => setSearchFocus(true)}
             onBlur={() => setSearchFocus(false)}
@@ -508,6 +515,17 @@ export default function TopBar(): React.ReactElement {
               }
             }}
           />
+          <button
+            type="button"
+            className={'search-syntax' + (parsedQuery.errors.length ? ' err' : '')}
+            title={
+              parsedQuery.errors.length ? parsedQuery.errors.join('\\n') : '搜索语法：tag: / model: / rating:>=4 / is:favorite'
+            }
+            aria-label="搜索语法"
+            onClick={() => setSearchHelpOpen(true)}
+          >
+            <Icon name={parsedQuery.errors.length ? 'alert' : 'help'} size={13} />
+          </button>
           {q && (
             <button type="button" className="search-clear" onClick={() => setQ('')} title="清空">
               <Icon name="close" size={12} strokeWidth={2.4} />
@@ -516,6 +534,12 @@ export default function TopBar(): React.ReactElement {
         </div>
 
         <div className="tb-right">
+          {similarTo && (
+            <button type="button" className="sim-chip" title="清除相似图筛选" onClick={clearSimilar}>
+              <Icon name="search" size={12} /> 相似：{similarLabel}
+              <Icon name="close" size={11} strokeWidth={2.2} />
+            </button>
+          )}
           <div className="count-chip">
             {count} 条
             {tagIds.length > 0 && <span className="dot-sep" />}
@@ -554,6 +578,7 @@ export default function TopBar(): React.ReactElement {
       </div>
 
       <ShareHelp open={shareHelpOpen} onClose={() => setShareHelpOpen(false)} />
+      <SearchHelp open={searchHelpOpen} onClose={() => setSearchHelpOpen(false)} />
     </>
   )
 }

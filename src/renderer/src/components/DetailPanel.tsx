@@ -9,6 +9,7 @@ export default function DetailPanel(): React.ReactElement | null {
   const startEdit = useStore((s) => s.startEdit)
   const patchEntries = useStore((s) => s.patchEntries)
   const filterByTag = useStore((s) => s.filterByTag)
+  const findSimilar = useStore((s) => s.findSimilar)
   const activeTagIds = useStore((s) => s.tagIds)
   const removeEntries = useStore((s) => s.removeEntries)
   const toast = useStore((s) => s.toast)
@@ -195,6 +196,14 @@ export default function DetailPanel(): React.ReactElement | null {
               }
             >
               <Icon name="star" size={15} />
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              title="找相似图"
+              onClick={() => findSimilar(entry.id)}
+            >
+              <Icon name="search" size={15} />
             </button>
             <button type="button" className="icon-btn" title="编辑 (E)" onClick={() => startEdit(entry.id)}>
               <Icon name="edit" size={15} />

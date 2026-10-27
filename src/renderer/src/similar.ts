@@ -12,6 +12,20 @@ export function versionKey(s: string): string {
   return nums ? nums.join('.') : ''
 }
 
+/** 感知哈希的汉明距离；与主进程 duplicates.ts 使用同一套 64bit dHash */
+export function hammingHex(a: string, b: string): number {
+  if (!a || !b || a.length !== b.length) return 64
+  let d = 0
+  for (let i = 0; i < a.length; i++) {
+    let x = parseInt(a[i], 16) ^ parseInt(b[i], 16)
+    while (x) {
+      d += x & 1
+      x >>= 1
+    }
+  }
+  return d
+}
+
 /** 编辑距离（按字符而不是 UTF-16 码元，中文/emoji 都按一个字算） */
 export function levenshtein(a: string, b: string): number {
   const A = Array.from(a)

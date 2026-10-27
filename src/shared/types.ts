@@ -12,7 +12,7 @@
 export type Id = string
 
 /** 库结构版本，与 App 版本无关；每次破坏性改动 +1 并补迁移 */
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 /** 支持的媒体类型 */
 export type AssetKind = 'image' | 'video'
@@ -162,6 +162,30 @@ export interface LibraryData {
   collections: Collection[]
   /** 模型词表（可选：老库没有，加载时自动种入默认值） */
   models?: ModelPreset[]
+  /** 保存的筛选视图；0.10.0 新增，老库迁移时补空数组 */
+  views?: SavedView[]
+}
+
+export type SortKey = 'newest' | 'oldest' | 'rating' | 'title' | 'assets'
+export type KindFilter = 'all' | 'image' | 'video'
+export type TagMode = 'or' | 'and'
+
+/** 把当前搜索、筛选和排序保存成一个可复用视图 */
+export interface SavedView {
+  id: Id
+  name: string
+  q: string
+  collectionId: Id | null
+  tagIds: Id[]
+  tagMode: TagMode
+  ratingMin: number
+  onlyFavorite: boolean
+  kind: KindFilter
+  platform: string | null
+  model: string | null
+  sort: SortKey
+  createdAt: string
+  updatedAt: string
 }
 
 /* ────────────────────────── 应用配置（存 userData，不进库） ────────────────────────── */

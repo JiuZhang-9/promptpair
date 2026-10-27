@@ -38,6 +38,8 @@ const api = {
   deleteModel: (id: string) => ipcRenderer.invoke('model:delete', id),
   mergeModels: (fromIds: string[], toId: string, syncEntries?: boolean) =>
     ipcRenderer.invoke('model:merge', fromIds, toId, syncEntries),
+  createView: (input: unknown) => ipcRenderer.invoke('view:create', input),
+  deleteView: (id: string) => ipcRenderer.invoke('view:delete', id),
   resetModels: () => ipcRenderer.invoke('model:reset'),
   createTagGroup: (name: string, color: string) => ipcRenderer.invoke('tagGroup:create', name, color),
   updateTagGroup: (id: string, patch: unknown) => ipcRenderer.invoke('tagGroup:update', id, patch),

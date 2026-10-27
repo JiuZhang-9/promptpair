@@ -13,7 +13,8 @@ import type {
   TagCandidateAssignment,
   TagMergeResult,
   EntryDraft,
-  BatchPatch
+  BatchPatch,
+  SavedView
 } from '../shared/types'
 import { DEFAULT_MODELS, DEFAULT_TAG_GROUPS, SCHEMA_VERSION } from '../shared/types'
 
@@ -61,7 +62,8 @@ function emptyLibrary(name: string): LibraryData {
     tagGroups,
     tags: [],
     collections: [],
-    models: seedModels()
+    models: seedModels(),
+    views: []
   }
 }
 
@@ -71,7 +73,7 @@ type Migration = (d: any) => any
 
 /** key = 目标版本。从 d.schemaVersion 逐级升到 SCHEMA_VERSION */
 const MIGRATIONS: Record<number, Migration> = {
-  // 示例：2: (d) => ({ ...d, newField: [] })
+  2: (d) => ({ ...d, views: Array.isArray(d.views) ? d.views : [] })
 }
 
 function migrate(raw: any): LibraryData {
@@ -89,7 +91,8 @@ function migrate(raw: any): LibraryData {
   d.assets ??= []
   d.tagGroups ??= []
   d.tags ??= []
-  d.collections ??= []
+  d.collections ??=[]
+  d.views ??= []
   // 老库没有模型词表：种入默认值；已有词表则补齐字段
   if (!Array.isArray(d.models) || d.models.length === 0) {
     d.models = seedModels()
@@ -672,6 +675,48 @@ export class Library {
   deleteCollection(id: string): void {
     this.data.collections = this.data.collections.filter((c) => c.id !== id)
     for (const e of this.data.entries) e.collectionIds = e.collectionIds.filter((c) => c !== id)
+    this.touch()
+  }
+
+  /* ── 保存视图 ── */
+
+  createSavedView(input: Omit<SavedView, 'id' | 'createdAt' | 'updatedAt'>): SavedView {
+    const name = input.name.trim()
+    if (!name) throw new Error('视图名称不能为空')
+    if (name.length > 60) throw new Error('视图名称太长')
+    const now = nowIso()
+    const v: SavedView = {
+      id: newId(),
+      name,
+      q: String(input.q ?? ''),
+      collectionId: input.collectionId || null,
+      tagIds: Array.isArray(input.tagIds) ? input.tagIds.filter(Boolean) : [],
+      tagMode: input.tagMode === 'and' ? 'and' : 'or',
+      ratingMin: Math.max(0, Math.min(5, Number(input.ratingMin) || 0)),
+      onlyFavorite: !!input.onlyFavorite,
+      kind: input.kind === 'image' || input.kind === 'video' ? input.kind : 'all',
+      platform: input.platform || null,
+      model: input.model || null,
+      sort:
+        input.sort === 'oldest' ||
+        input.sort === 'rating' ||
+        input.sort === 'title' ||
+        input.sort === 'assets'
+          ? input.sort
+          : 'newest',
+      createdAt: now,
+      updatedAt: now
+    }
+    this.data.views ??= []
+    this.data.views.push(v)
+    this.touch()
+    return v
+  }
+
+  deleteSavedView(id: string): void {
+    const before = (this.data.views ?? []).length
+    this.data.views = (this.data.views ?? []).filter((v) => v.id !== id)
+    if (this.data.views.length === before) throw new Error('视图不存在')
     this.touch()
   }
 }

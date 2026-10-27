@@ -6,16 +6,20 @@ import type {
   Collection,
   EntryDraft,
   ImportResult,
+  KindFilter,
   LibraryData,
   PromptEntry,
+  SavedView,
+  SortKey,
   Tag,
   TagGroup,
+  TagMode,
   UpdateStatus
 } from '../../shared/types'
 import type { DupReport, ImportOptions, LibrarySnapshot } from '../../preload/index.d'
+import { hammingHex } from './similar'
+import { parseQuery } from './query'
 
-export type SortKey = 'newest' | 'oldest' | 'rating' | 'title' | 'assets'
-export type KindFilter = 'all' | 'image' | 'video'
 export type PanelKind = 'none' | 'settings' | 'dups' | 'tags' | 'models'
 export type BatchTagModal = 'none' | 'add' | 'remove'
 
@@ -52,6 +56,10 @@ export interface StoreState {
   platform: string | null
   /** 模型筛选：词表里的模型名；null = 不筛 */
   model: string | null
+  /** 相似图搜索：种子条目和结果 id；null = 未启用 */
+  similarTo: string | null
+  similarLabel: string
+  similarIds: string[]
 
   /* 展示 */
   sort: SortKey
@@ -93,6 +101,11 @@ export interface StoreState {
   setKind: (k: KindFilter) => void
   setPlatform: (p: string | null) => void
   setModelFilter: (m: string | null) => void
+  findSimilar: (id: string) => void
+  clearSimilar: () => void
+  saveCurrentView: (name: string) => Promise<SavedView | null>
+  applyView: (id: string) => void
+  deleteView: (id: string) => Promise<void>
   setSort: (s: SortKey) => void
   setThumbSize: (n: number) => void
   resetFilters: () => void
@@ -201,6 +214,9 @@ export const useStore = create<StoreState>((set, get) => ({
   kind: 'all',
   platform: null,
   model: null,
+  similarTo: null,
+  similarLabel: '',
+  similarIds: [],
 
   sort: 'newest',
   thumbSize: 220,
@@ -325,6 +341,111 @@ export const useStore = create<StoreState>((set, get) => ({
   setKind: (k) => set({ kind: k }),
   setPlatform: (p) => set({ platform: p }),
   setModelFilter: (m) => set({ model: m }),
+  findSimilar: (id) => {
+    const s = get()
+    const seed = s.data.entries.find((e) => e.id === id)
+    if (!seed) return
+    const assets = assetMap(s.data)
+    const seedHashes = seed.assetIds
+      .map((aid) => assets.get(aid)?.phash)
+      .filter((h): h is string => !!h)
+    if (!seedHashes.length) {
+      get().toast('这条记录还没有可比较的图片指纹，先运行「修复缩略图」', 'info')
+      return
+    }
+    const threshold = Math.max(4, Math.min(16, s.config.duplicateThreshold || 6))
+    const ids = s.data.entries
+      .filter((e) => e.id !== id)
+      .filter((e) =>
+        e.assetIds.some((aid) => {
+          const ph = assets.get(aid)?.phash
+          return !!ph && seedHashes.some((h) => hammingHex(h, ph) <= threshold)
+        })
+      )
+      .map((e) => e.id)
+    if (!ids.length) {
+      get().toast(`没有找到相似图（汉明距离 ≤ ${threshold}）`, 'info')
+      return
+    }
+    set({
+      similarTo: id,
+      similarLabel: seed.title || '未命名',
+      similarIds: ids,
+      q: '',
+      collectionId: null,
+      tagIds: [],
+      ratingMin: 0,
+      onlyFavorite: false,
+      kind: 'all',
+      platform: null,
+      model: null,
+      selectedIds: [],
+      detailId: null,
+      anchorId: null,
+      focusIndex: null
+    })
+    get().toast(`找到 ${ids.length} 张相似图`, 'ok')
+  },
+  clearSimilar: () => set({ similarTo: null, similarLabel: '', similarIds: [] }),
+  saveCurrentView: async (name) => {
+    const clean = name.trim()
+    if (!clean) return null
+    const s = get()
+    try {
+      const v = (await window.pp.createView({
+        name: clean,
+        q: s.q,
+        collectionId: s.collectionId,
+        tagIds: s.tagIds,
+        tagMode: s.tagMode,
+        ratingMin: s.ratingMin,
+        onlyFavorite: s.onlyFavorite,
+        kind: s.kind,
+        platform: s.platform,
+        model: s.model,
+        sort: s.sort
+      })) as SavedView
+      await get().refresh()
+      get().toast(`已保存视图「${v.name}」`, 'ok')
+      return v
+    } catch (e) {
+      get().toast('保存视图失败：' + (e as Error).message, 'err')
+      return null
+    }
+  },
+  applyView: (id) => {
+    const v = (get().data.views ?? []).find((x) => x.id === id)
+    if (!v) return
+    set({
+      q: v.q,
+      collectionId: v.collectionId,
+      tagIds: v.tagIds,
+      tagMode: v.tagMode,
+      ratingMin: v.ratingMin,
+      onlyFavorite: v.onlyFavorite,
+      kind: v.kind,
+      platform: v.platform,
+      model: v.model,
+      sort: v.sort,
+      similarTo: null,
+      similarLabel: '',
+      similarIds: [],
+      selectedIds: [],
+      detailId: null,
+      anchorId: null,
+      focusIndex: null
+    })
+    get().toast(`已应用视图「${v.name}」`, 'ok')
+  },
+  deleteView: async (id) => {
+    try {
+      await window.pp.deleteView(id)
+      await get().refresh()
+      get().toast('已删除视图', 'ok')
+    } catch (e) {
+      get().toast('删除视图失败：' + (e as Error).message, 'err')
+    }
+  },
   setSort: (s) => set({ sort: s }),
   setThumbSize: (n) => {
     const next = Math.max(120, Math.min(380, Math.round(n)))
@@ -345,7 +466,10 @@ export const useStore = create<StoreState>((set, get) => ({
       onlyFavorite: false,
       kind: 'all',
       platform: null,
-      model: null
+      model: null,
+      similarTo: null,
+      similarLabel: '',
+      similarIds: []
     }),
   setPanel: (p) => {
     if (p === 'settings' || p === 'none') {
@@ -720,10 +844,21 @@ export function selectEntries(s: StoreState): PromptEntry[] {
   const { data, q, collectionId, tagIds, tagMode, ratingMin, onlyFavorite, kind, platform, model, sort } = s
   const assets = assetMap(data)
   const tags = tagMap(data)
-  const query = q.trim().toLowerCase()
+  const colls = collMap(data)
+  const parsed = parseQuery(q)
+  const query = parsed.text
+
+  const ratingMatch = (rating: number, op: string, value: number): boolean => {
+    if (op === '>=') return rating >= value
+    if (op === '<=') return rating <= value
+    if (op === '>') return rating > value
+    if (op === '<') return rating < value
+    return rating === value
+  }
 
   const out: PromptEntry[] = []
   for (const e of data.entries) {
+    if (s.similarTo && !s.similarIds.includes(e.id)) continue
     if (collectionId && !e.collectionIds.includes(collectionId)) continue
     if (onlyFavorite && !e.favorite) continue
     if (ratingMin > 0 && e.rating < ratingMin) continue
@@ -744,14 +879,58 @@ export function selectEntries(s: StoreState): PromptEntry[] {
       } else if (!tagIds.some((t) => e.tagIds.includes(t))) continue
     }
 
+    const names = e.tagIds.map((t) => tags.get(t)?.name ?? '').filter(Boolean)
+    const collNames = e.collectionIds.map((id) => colls.get(id)?.name ?? '').filter(Boolean)
+    const entryModel = (e.params?.model ?? '').toLowerCase()
+    const entryPlatform = (e.source?.platform ?? '').toLowerCase()
+
+    if (
+      parsed.tags.length &&
+      !parsed.tags.every((needle) =>
+        names.some((name) => name.toLowerCase().includes(needle.toLowerCase()))
+      )
+    )
+      continue
+    if (
+      parsed.models.length &&
+      !parsed.models.every((needle) => entryModel.includes(needle.toLowerCase()))
+    )
+      continue
+    if (
+      parsed.platforms.length &&
+      !parsed.platforms.every((needle) => entryPlatform.includes(needle.toLowerCase()))
+    )
+      continue
+    if (
+      parsed.collections.length &&
+      !parsed.collections.every((needle) =>
+        collNames.some((name) => name.toLowerCase().includes(needle.toLowerCase()))
+      )
+    )
+      continue
+    if (!parsed.ratings.every((r) => ratingMatch(e.rating, r.op, r.value))) continue
+    if (parsed.kinds.length) {
+      const ok = parsed.kinds.every((k) => e.assetIds.some((id) => assets.get(id)?.kind === k))
+      if (!ok) continue
+    }
+    if (parsed.flags.includes('favorite') && !e.favorite) continue
+    if (parsed.flags.includes('unrated') && e.rating !== 0) continue
+    if (parsed.flags.includes('rated') && e.rating === 0) continue
+    if (parsed.has.includes('prompt') && !e.positive.trim()) continue
+    if (parsed.has.includes('negative') && !e.negative.trim()) continue
+    if (parsed.has.includes('note') && !e.note.trim()) continue
+    const day = e.createdAt.slice(0, 10)
+    if (parsed.before && day >= parsed.before) continue
+    if (parsed.after && day < parsed.after) continue
+
     if (query) {
-      const names = e.tagIds.map((t) => tags.get(t)?.name ?? '').join(' ')
       const hay = [
         e.title,
         e.positive,
         e.negative,
         e.note,
-        names,
+        names.join(' '),
+        collNames.join(' '),
         e.params?.model ?? '',
         e.params?.sampler ?? '',
         e.params?.seed ?? '',

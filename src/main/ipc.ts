@@ -11,7 +11,8 @@ import type {
   ImportResult,
   LibraryData,
   ModelKind,
-  TagCandidateAssignment
+  TagCandidateAssignment,
+  SavedView
 } from '../shared/types'
 import { kindOfExt } from '../shared/types'
 import { Library } from './library'
@@ -244,6 +245,19 @@ export function registerIpc(ctx: AppCtx): void {
       ctx.lib.updateModel(id, patch, { syncEntries: !!syncEntries })
   )
   ipcMain.handle('model:delete', (_e, id: string) => ctx.lib.deleteModel(id))
+  ipcMain.handle(
+    'view:create',
+    (_e, input: Omit<SavedView, 'id' | 'createdAt' | 'updatedAt'>) => {
+      const v = ctx.lib.createSavedView(input)
+      ctx.lib.flush()
+      return v
+    }
+  )
+  ipcMain.handle('view:delete', (_e, id: string) => {
+    ctx.lib.deleteSavedView(id)
+    ctx.lib.flush()
+    return true
+  })
   ipcMain.handle(
     'model:merge',
     (_e, fromIds: string[], toId: string, syncEntries?: boolean) =>

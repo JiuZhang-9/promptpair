@@ -16,6 +16,7 @@ import type {
   TagCandidateAssignment,
   TagGroup,
   TagMergeResult,
+  SavedView,
   UpdateStatus
 } from '../shared/types'
 
@@ -81,6 +82,8 @@ export interface PpApi {
     syncEntries?: boolean
   ): Promise<{ model: ModelPreset; affectedEntries: number }>
   deleteModel(id: string): Promise<ModelPreset>
+  createView(input: Omit<SavedView, 'id' | 'createdAt' | 'updatedAt'>): Promise<SavedView>
+  deleteView(id: string): Promise<void>
   mergeModels(
     fromIds: string[],
     toId: string,

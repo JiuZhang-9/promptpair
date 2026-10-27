@@ -4350,3 +4350,69 @@ body {
     animation: none !important;
   }
 }
+
+/* 0.10.0 查询语法 / 保存视图 / 相似图 */
+.search-syntax {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-3);
+  padding: 2px;
+  border-radius: var(--r-xs);
+}
+
+.search-syntax:hover {
+  color: var(--fg);
+  background: var(--hl);
+}
+
+.search-syntax.err {
+  color: var(--warn);
+}
+
+.search-syntax-list {
+  display: grid;
+  gap: 2px;
+}
+
+.search-syntax-row {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 14px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.search-syntax-row:last-child {
+  border-bottom: 0;
+}
+
+.search-syntax-row code,
+.set-note code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.sim-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-2);
+  background: var(--hl);
+  color: var(--fg-2);
+  font-size: 12px;
+  max-width: 260px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sim-chip:hover {
+  border-color: var(--line-3);
+  color: var(--fg);
+}

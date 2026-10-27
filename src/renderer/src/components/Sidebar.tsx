@@ -62,10 +62,14 @@ export default function Sidebar(): React.ReactElement {
   const setKind = useStore((s) => s.setKind)
   const setPlatform = useStore((s) => s.setPlatform)
   const setPanel = useStore((s) => s.setPanel)
+  const saveCurrentView = useStore((s) => s.saveCurrentView)
+  const applyView = useStore((s) => s.applyView)
+  const deleteView = useStore((s) => s.deleteView)
   const resetFilters = useStore((s) => s.resetFilters)
   const toast = useStore((s) => s.toast)
   const refresh = useStore((s) => s.refresh)
 
+  const views = data.views ?? []
   const tags = useMemo(() => tagMap(data), [data])
   const groups = useMemo(() => groupMap(data), [data])
 
@@ -235,6 +239,54 @@ export default function Sidebar(): React.ReactElement {
             <span className="nav-label">收藏</span>
             <em>{data.entries.filter((e) => e.favorite).length}</em>
           </button>
+        </Section>
+
+        <Section
+          title="视图"
+          action={
+            <button
+              type="button"
+              className="icon-btn xs"
+              title="把当前搜索、筛选和排序保存为视图"
+              onClick={() => {
+                const name = window.prompt('保存当前视图，输入名称：', '')
+                if (name?.trim()) void saveCurrentView(name)
+              }}
+            >
+              <Icon name="plus" size={13} strokeWidth={2.2} />
+            </button>
+          }
+        >
+          {views.length === 0 && (
+            <div className="sb-hint">把常用搜索、标签和排序存成视图，下次一点就回来。</div>
+          )}
+          {views.map((v) => (
+            <div
+              key={v.id}
+              className="nav-item"
+              role="button"
+              tabIndex={0}
+              title={v.q || '保存的筛选视图'}
+              onClick={() => applyView(v.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') applyView(v.id)
+              }}
+            >
+              <Icon name="filter" size={14} />
+              <span className="nav-label">{v.name}</span>
+              <button
+                type="button"
+                className="row-del"
+                title="删除视图"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (window.confirm(`删除视图「${v.name}」？`)) void deleteView(v.id)
+                }}
+              >
+                <Icon name="close" size={11} strokeWidth={2.2} />
+              </button>
+            </div>
+          ))}
         </Section>
 
         <Section
