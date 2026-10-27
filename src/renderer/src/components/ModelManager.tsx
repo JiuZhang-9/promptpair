@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { ModelKind, ModelPreset } from '../../../shared/types'
 import { MODEL_KIND_LABEL } from '../../../shared/types'
 import { useStore } from '../store'
-import { levenshtein, normalizeName } from '../similar'
+import { levenshtein, normalizeName, versionKey } from '../similar'
 import { Empty, Icon, Modal } from './ui'
 
 function cleanError(e: unknown): string {
@@ -82,6 +82,10 @@ export default function ModelManager(): React.ReactElement {
         const A = normalizeName(models[i].name)
         const B = normalizeName(models[j].name)
         if (!A || !B) continue
+        // 即梦 3.0 / 即梦 4.0 只差一个字符，但它们是不同版本，不能提示重复。
+        const va = versionKey(A)
+        const vb = versionKey(B)
+        if (va && vb && va !== vb) continue
         let reason = ''
         if (A === B) reason = '名称相同'
         else {
@@ -323,7 +327,13 @@ export default function ModelManager(): React.ReactElement {
                       }}
                     />
                   ) : (
-                    <span className="tm-name ellipsis">{m.name}</span>
+                    <span
+                      className="tm-name ellipsis"
+                      title="双击重命名"
+                      onDoubleClick={() => startRename(m)}
+                    >
+                      {m.name}
+                    </span>
                   )}
 
                   <span className={'mm-kind ' + m.kind}>{MODEL_KIND_LABEL[m.kind]}</span>

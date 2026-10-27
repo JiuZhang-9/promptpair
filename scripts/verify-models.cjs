@@ -84,6 +84,51 @@ app.whenReady().then(async () => {
     )
     assert(/已存在|已在词表/.test(dupErr), '同名（去空格后相同）被拒绝', dupErr)
 
+    console.log('\n→ 英文名称与版本判重…')
+    const stable = await js(`window.pp.createModel('stable-test', 'image')`)
+    assert(stable.name === 'stable-test', '英文 s 开头名称保留首字符', stable.name)
+    const v4 = await js(`window.pp.createModel('即梦 4.0', 'video')`)
+    assert(v4.name === '即梦 4.0', '新建即梦 4.0')
+    // createModel 走的是主进程 IPC，重载后 store 才能拿到新词表
+    win.webContents.reload()
+    await sleep(2400)
+    const openedModels = await js(`
+      (() => {
+        const b = [...document.querySelectorAll('.nav-item')].find(x => x.textContent.trim() === '模型管理')
+        if (b) b.click()
+        return !!b
+      })()
+    `)
+    assert(openedModels, '打开模型管理面板')
+    await sleep(500)
+    const sugNames = await js(`
+      Array.from(document.querySelectorAll('.tm-sug-names')).map(x => x.textContent.trim())
+    `)
+    const badSuggestion = sugNames.some((t) => t.includes('即梦 3.0') && t.includes('即梦 4.0'))
+    assert(!badSuggestion, '即梦 3.0 / 4.0 不再提示重复', sugNames.slice(0, 6))
+
+    const dbl = await js(`
+      (() => {
+        const el = [...document.querySelectorAll('.tm-name')].find(x => x.textContent.trim() === '即梦 4.0')
+        if (!el) return false
+        el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+        return true
+      })()
+    `)
+    await sleep(200)
+    const renameValue = await js(`document.querySelector('.tm-rename')?.value || ''`)
+    assert(dbl && renameValue === '即梦 4.0', '双击模型名进入重命名', renameValue)
+    await js(`document.querySelector('.tm-rename')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+    await sleep(200)
+    await js(`
+      (() => {
+        const b = [...document.querySelectorAll('.nav-item')].find(x => x.textContent.trim() === '模型管理')
+        if (b) b.click()
+        return !!b
+      })()
+    `)
+    await sleep(300)
+
     console.log('\n→ 条目与合并…')
     const entryA = await js(`window.pp.saveEntry(${JSON.stringify(draft('记录A', '即梦3.0'))})`)
     const entryB = await js(`window.pp.saveEntry(${JSON.stringify(draft('记录B', '即梦 3.0'))})`)

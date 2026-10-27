@@ -46,10 +46,26 @@ export default function SettingsPanel(): React.ReactElement {
   })
   const [aiTestMsg, setAiTestMsg] = useState('')
   const [aiTesting, setAiTesting] = useState(false)
+  const [uiDraft, setUiDraft] = useState(Math.round((config.uiScale ?? 1) * 100))
 
   useEffect(() => {
     setAiDraft({ baseUrl: config.aiBaseUrl, apiKey: config.aiApiKey, model: config.aiModel })
   }, [config.aiBaseUrl, config.aiApiKey, config.aiModel])
+
+  useEffect(() => {
+    setUiDraft(Math.round((config.uiScale ?? 1) * 100))
+  }, [config.uiScale])
+
+  /**
+   * 界面缩放不在拖动过程中应用：页面整体缩放会把滑杆从鼠标下挪走，
+   * 位置变化又触发新值，形成来回抖动。拖动只改本地数字，松手再真正缩放。
+   */
+  const commitUiScale = (value: number): void => {
+    const v = Math.max(90, Math.min(110, Math.round(value)))
+    setUiDraft(v)
+    if (v === Math.round((config.uiScale ?? 1) * 100)) return
+    void applyConfig({ uiScale: v / 100 })
+  }
 
   useEffect(() => {
     if (panel !== 'settings') return
@@ -150,15 +166,19 @@ export default function SettingsPanel(): React.ReactElement {
           </Row>
           <Row
             label="界面大小"
-            desc={`在已放大的基础字号上再缩放 · ${Math.round((config.uiScale ?? 1) * 100)}%`}
+            desc={`拖动后松手应用 · ${uiDraft}%`}
           >
             <input
+              id="ui-scale-input"
               type="range"
               min={90}
               max={110}
               step={5}
-              value={Math.round((config.uiScale ?? 1) * 100)}
-              onChange={(e) => void applyConfig({ uiScale: Number(e.target.value) / 100 })}
+              value={uiDraft}
+              onChange={(e) => setUiDraft(Number(e.target.value))}
+              onPointerUp={(e) => commitUiScale(Number(e.currentTarget.value))}
+              onKeyUp={(e) => commitUiScale(Number(e.currentTarget.value))}
+              onBlur={(e) => commitUiScale(Number(e.currentTarget.value))}
             />
           </Row>
         </div>

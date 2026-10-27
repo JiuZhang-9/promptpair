@@ -485,7 +485,7 @@ export class Library {
   /* ── 模型词表 ── */
 
   private modelEq(a: string, b: string): boolean {
-    const norm = (v: string): string => v.trim().toLowerCase().replace(/s+/g, ' ')
+    const norm = (v: string): string => v.trim().toLowerCase().replace(/\s+/g, ' ')
     return norm(a) === norm(b)
   }
 
@@ -494,7 +494,7 @@ export class Library {
   }
 
   createModel(name: string, kind: ModelKind = 'other'): ModelPreset {
-    const clean = name.trim().replace(/s+/g, ' ')
+    const clean = name.trim().replace(/\s+/g, ' ')
     if (!clean) throw new Error('模型名不能为空')
     if (this.findModelByName(clean)) throw new Error(`模型「${clean}」已在词表中`)
     const m: ModelPreset = { id: newId(), name: clean, kind, builtin: false }
@@ -514,7 +514,7 @@ export class Library {
     if (!m) throw new Error('模型不存在')
     const oldName = m.name
     if (patch.name !== undefined) {
-      const clean = patch.name.trim().replace(/s+/g, ' ')
+      const clean = patch.name.trim().replace(/\s+/g, ' ')
       if (!clean) throw new Error('模型名不能为空')
       const dup = this.findModelByName(clean)
       if (dup && dup.id !== id) throw new Error(`模型「${clean}」已在词表中`)

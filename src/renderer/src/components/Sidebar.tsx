@@ -91,17 +91,17 @@ export default function Sidebar(): React.ReactElement {
     for (const e of data.entries) {
       const raw = (e.params?.model ?? '').trim()
       if (!raw) continue
-      const key = raw.toLowerCase().replace(/s+/g, ' ')
+      const key = raw.toLowerCase().replace(/\s+/g, ' ')
       counts.set(key, (counts.get(key) ?? 0) + 1)
     }
     const names = new Map<string, string>()
     for (const m of data.models ?? []) {
-      names.set(m.name.trim().toLowerCase().replace(/s+/g, ' '), m.name)
+      names.set(m.name.trim().toLowerCase().replace(/\s+/g, ' '), m.name)
     }
     for (const e of data.entries) {
       const raw = (e.params?.model ?? '').trim()
       if (!raw) continue
-      const key = raw.toLowerCase().replace(/s+/g, ' ')
+      const key = raw.toLowerCase().replace(/\s+/g, ' ')
       if (!names.has(key)) names.set(key, raw)
     }
     return Array.from(names.entries())

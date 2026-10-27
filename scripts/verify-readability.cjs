@@ -139,25 +139,46 @@ app.whenReady().then(async () => {
     await sleep(120)
 
     console.log('\n→ 90–110% 界面比例')
+    await js(win, `window.pp.patchConfig({ uiScale: 1 })`)
+    await sleep(250)
+    assert(Math.abs(win.webContents.getZoomFactor() - 1) < 0.001, '100% 页面缩放', win.webContents.getZoomFactor())
     await js(win, `document.querySelector('.tb-actions [title="设置"]')?.click()`)
     await sleep(250)
     assert(
       await js(win, `!!document.querySelector('.settings-modal') && document.querySelector('.settings-modal').textContent.includes('界面大小')`),
       '设置里有界面大小'
     )
-    await js(win, `document.querySelector('.settings-modal [title^="关闭"]')?.click()`)
-    await sleep(150)
-    await js(win, `window.pp.patchConfig({ uiScale: 1 })`)
-    await sleep(250)
-    assert(Math.abs(win.webContents.getZoomFactor() - 1) < 0.001, '100% 页面缩放', win.webContents.getZoomFactor())
-    const scaled = await js(win, `window.pp.patchConfig({ uiScale: 1.1 })`)
-    await sleep(300)
+    const setSlider = async (value) => {
+      await js(win, `(() => {
+        const el = document.querySelector('#ui-scale-input')
+        if (!el) return false
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+        setter.call(el, '${value}')
+        el.dispatchEvent(new Event('input', { bubbles: true }))
+        return true
+      })()`)
+      await sleep(180)
+    }
+    const releaseSlider = async () => {
+      await js(win, `document.querySelector('#ui-scale-input')?.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1 }))`)
+      await sleep(450)
+    }
+    await setSlider(110)
+    assert(
+      Math.abs(win.webContents.getZoomFactor() - 1) < 0.001,
+      '拖动滑杆时还不缩放（松手才生效）',
+      win.webContents.getZoomFactor()
+    )
+    await releaseSlider()
     const cfg = await js(win, `window.pp.getConfig()`)
     console.log('  ', { zoom: win.webContents.getZoomFactor(), uiScale: cfg.uiScale })
     assert(Math.abs(win.webContents.getZoomFactor() - 1.1) < 0.001, '110% 页面缩放', win.webContents.getZoomFactor())
     assert(cfg.uiScale === 1.1, '110% 写入配置', cfg.uiScale)
-    await js(win, `window.pp.patchConfig({ uiScale: 1 })`)
-    await sleep(250)
+    await setSlider(100)
+    await releaseSlider()
+    assert(Math.abs(win.webContents.getZoomFactor() - 1) < 0.001, '恢复 100% 页面缩放', win.webContents.getZoomFactor())
+    await js(win, `document.querySelector('.settings-modal [title^="关闭"]')?.click()`)
+    await sleep(150)
 
     console.log(failures ? `\n✗ ${failures} 项失败` : '\n✅ C 方案验收全部通过')
   } catch (e) {

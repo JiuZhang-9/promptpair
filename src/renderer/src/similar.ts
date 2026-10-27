@@ -3,6 +3,15 @@ export function normalizeName(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
+/**
+ * 提取名称里的版本号签名（3.0 / v6 / 2.5 …）。
+ * 用于“疑似重复”：即梦 3.0 和即梦 4.0 不是重复，不能只按编辑距离判断。
+ */
+export function versionKey(s: string): string {
+  const nums = normalizeName(s).match(/\d+(?:\.\d+)*/g)
+  return nums ? nums.join('.') : ''
+}
+
 /** 编辑距离（按字符而不是 UTF-16 码元，中文/emoji 都按一个字算） */
 export function levenshtein(a: string, b: string): number {
   const A = Array.from(a)
