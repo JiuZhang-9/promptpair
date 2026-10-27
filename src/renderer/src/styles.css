@@ -2745,6 +2745,95 @@ button.mini-tag.on {
   position: relative;
 }
 
+.modelpicker {
+  position: relative;
+}
+
+.mp-group {
+  padding: 6px 8px 2px;
+  font-size: 10.5px;
+  color: var(--fg-4);
+  letter-spacing: .3px;
+}
+
+.mm-note {
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--fg-3);
+}
+
+.mm-note code {
+  font-size: 11px;
+}
+
+.mm-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.mm-add-name {
+  flex: 1;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xs);
+  background: var(--bg);
+  font-size: 12.5px;
+  outline: none;
+}
+
+.mm-add-kind {
+  height: 26px;
+  padding: 0 4px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xs);
+  background: var(--bg);
+  font-size: 11px;
+  outline: none;
+}
+
+.mm-kind {
+  flex: none;
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line-2);
+  color: var(--fg-3);
+}
+
+.mm-kind.video {
+  color: var(--fg-2);
+}
+
+.mm-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.mm-sync input {
+  margin: 0;
+}
+
+.mp-hint {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--fg-3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .tp-selected {
   display: flex;
   flex-wrap: wrap;

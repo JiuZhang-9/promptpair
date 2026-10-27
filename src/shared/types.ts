@@ -107,6 +107,47 @@ export interface Collection {
   createdAt: string
 }
 
+/* ────────────────────────── 模型词表 ────────────────────────── */
+
+/** 模型类型：只用于分组与筛选，不参与导出 */
+export type ModelKind = 'image' | 'video' | 'other'
+
+/**
+ * 模型词表条目。词表存在 library.json 里，随库搬迁、随分享包带走；
+ * 条目上的 params.model 仍是字符串快照，分享包与旧版本都能直接读。
+ */
+export interface ModelPreset {
+  id: Id
+  name: string
+  kind: ModelKind
+  /** 内置预设：可一键恢复默认词表 */
+  builtin?: boolean
+}
+
+/** 首次建库 / 老库升级时种入的默认模型词表 */
+export const DEFAULT_MODELS: { name: string; kind: ModelKind }[] = [
+  { name: '即梦 3.0', kind: 'video' },
+  { name: '可灵 1.6', kind: 'video' },
+  { name: 'Runway Gen-3', kind: 'video' },
+  { name: 'Sora', kind: 'video' },
+  { name: 'Veo 3', kind: 'video' },
+  { name: '海螺 02', kind: 'video' },
+  { name: 'PixVerse V4', kind: 'video' },
+  { name: 'Vidu Q1', kind: 'video' },
+  { name: 'Wan 2.1', kind: 'video' },
+  { name: 'MJ V6.1', kind: 'image' },
+  { name: 'MJ V7', kind: 'image' },
+  { name: 'SDXL', kind: 'image' },
+  { name: 'Flux.1', kind: 'image' },
+  { name: '即梦图片', kind: 'image' }
+]
+
+export const MODEL_KIND_LABEL: Record<ModelKind, string> = {
+  image: '图片',
+  video: '视频',
+  other: '其他'
+}
+
 export interface LibraryData {
   schemaVersion: number
   /** 库唯一 ID，用于导入合并时判断是否同源 */
@@ -119,6 +160,8 @@ export interface LibraryData {
   tagGroups: TagGroup[]
   tags: Tag[]
   collections: Collection[]
+  /** 模型词表（可选：老库没有，加载时自动种入默认值） */
+  models?: ModelPreset[]
 }
 
 /* ────────────────────────── 应用配置（存 userData，不进库） ────────────────────────── */

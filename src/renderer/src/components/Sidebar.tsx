@@ -50,6 +50,8 @@ export default function Sidebar(): React.ReactElement {
   const onlyFavorite = useStore((s) => s.onlyFavorite)
   const kind = useStore((s) => s.kind)
   const platform = useStore((s) => s.platform)
+  const modelFilter = useStore((s) => s.model)
+  const setModelFilter = useStore((s) => s.setModelFilter)
   const panel = useStore((s) => s.panel)
 
   const setCollection = useStore((s) => s.setCollection)
@@ -83,6 +85,31 @@ export default function Sidebar(): React.ReactElement {
     for (const e of noTagFilter) for (const t of e.tagIds) m.set(t, (m.get(t) ?? 0) + 1)
     return m
   }, [data.entries, collectionId, onlyFavorite, ratingMin, platform])
+
+  const modelChips = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const e of data.entries) {
+      const raw = (e.params?.model ?? '').trim()
+      if (!raw) continue
+      const key = raw.toLowerCase().replace(/s+/g, ' ')
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+    const names = new Map<string, string>()
+    for (const m of data.models ?? []) {
+      names.set(m.name.trim().toLowerCase().replace(/s+/g, ' '), m.name)
+    }
+    for (const e of data.entries) {
+      const raw = (e.params?.model ?? '').trim()
+      if (!raw) continue
+      const key = raw.toLowerCase().replace(/s+/g, ' ')
+      if (!names.has(key)) names.set(key, raw)
+    }
+    return Array.from(names.entries())
+      .map(([key, name]) => ({ name, count: counts.get(key) ?? 0 }))
+      .filter((x) => x.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 16)
+  }, [data.entries, data.models])
 
   const platforms = useMemo(() => {
     const m = new Map<string, number>()
@@ -331,6 +358,42 @@ export default function Sidebar(): React.ReactElement {
         )}
 
         <Section
+          title="模型"
+          action={
+            <div className="sb-head-actions">
+              <button type="button" className="link-btn" onClick={() => setPanel('models')}>
+                管理
+              </button>
+              {modelFilter && (
+                <button type="button" className="link-btn" onClick={() => setModelFilter(null)}>
+                  清空
+                </button>
+              )}
+            </div>
+          }
+        >
+          {modelChips.length === 0 ? (
+            <div className="sb-hint">在录入或编辑时，从模型词表里选择。</div>
+          ) : (
+            <div className="tag-list">
+              {modelChips.map((m) => (
+                <button
+                  key={m.name}
+                  type="button"
+                  className={'tagchip' + (modelFilter === m.name ? ' on' : '')}
+                  onClick={() => setModelFilter(modelFilter === m.name ? null : m.name)}
+                  title="点击筛选 · 再点取消"
+                >
+                  <span className="gdot" />
+                  {m.name}
+                  <em>{m.count}</em>
+                </button>
+              ))}
+            </div>
+          )}
+        </Section>
+
+        <Section
           title="标签"
           action={
             <div className="sb-head-actions">
@@ -471,6 +534,14 @@ export default function Sidebar(): React.ReactElement {
           >
             <Icon name="tag" size={14} />
             <span className="nav-label">标签管理</span>
+          </button>
+          <button
+            type="button"
+            className={'nav-item' + (panel === 'models' ? ' on' : '')}
+            onClick={() => setPanel(panel === 'models' ? 'none' : 'models')}
+          >
+            <Icon name="layers" size={14} />
+            <span className="nav-label">模型管理</span>
           </button>
           <button
             type="button"

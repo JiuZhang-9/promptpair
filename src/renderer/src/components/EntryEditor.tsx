@@ -1,7 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import type { Asset, EntryDraft } from '../../../shared/types'
+import type { Asset, EntryDraft, ModelKind } from '../../../shared/types'
+import { MODEL_KIND_LABEL } from '../../../shared/types'
 import { assetMap, groupMap, tagMap, thumbUrl, useStore } from '../store'
 import { Field, Icon, Modal, Stars, copyText, formatBytes } from './ui'
+
+function cleanError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e)
+  return msg.replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/, '')
+}
 
 // 单色设计：集合/标签组一律用灰阶，不用彩色
 const PRESET_COLORS = ['#c7c7cc', '#a1a1aa', '#8e8e93', '#71717a', '#5a5a60', '#b4b4bb', '#3f3f46']
@@ -133,6 +139,201 @@ function TagPicker({
   )
 }
 
+
+function ModelPicker({
+  value,
+  defaultKind,
+  onChange
+}: {
+  value: string
+  defaultKind: ModelKind
+  onChange: (name: string) => void
+}): React.ReactElement {
+  const data = useStore((s) => s.data)
+  const refresh = useStore((s) => s.refresh)
+  const toast = useStore((s) => s.toast)
+  const [text, setText] = useState(value)
+  // 过滤词与显示值分开：聚焦时显示全量，输入后才过滤
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    setText(value)
+  }, [value])
+
+  const models = useMemo(() => data.models ?? [], [data.models])
+  const usage = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const e of data.entries) {
+      const n = (e.params?.model ?? '').trim().toLowerCase()
+      if (n) m.set(n, (m.get(n) ?? 0) + 1)
+    }
+    return m
+  }, [data.entries])
+
+  const needle = q.trim().toLowerCase()
+  const filtered = useMemo(() => {
+    const list = models.filter((m) => (needle ? m.name.toLowerCase().includes(needle) : true))
+    return list
+      .slice()
+      .sort(
+        (a, b) =>
+          (usage.get(b.name.toLowerCase()) ?? 0) - (usage.get(a.name.toLowerCase()) ?? 0) ||
+          a.name.localeCompare(b.name, 'zh-Hans-CN')
+      )
+      .slice(0, 80)
+  }, [models, usage, needle])
+
+  const grouped = useMemo(() => {
+    const g: Record<ModelKind, typeof filtered> = { video: [], image: [], other: [] }
+    for (const m of filtered) g[m.kind].push(m)
+    return g
+  }, [filtered])
+
+  const inVocab = models.some((m) => m.name.trim().toLowerCase() === value.trim().toLowerCase())
+  const exact = models.some((m) => m.name.trim().toLowerCase() === needle)
+  const canCreate = !!needle && !exact
+  const canAdopt = !!value.trim() && !inVocab
+
+  const createModel = async (name: string): Promise<void> => {
+    const clean = name.trim()
+    if (!clean) return
+    try {
+      const m = await window.pp.createModel(clean, defaultKind)
+      await refresh()
+      onChange(m.name)
+      setText(m.name)
+      setQ('')
+      setOpen(false)
+      toast(`已加入词表「${m.name}」`, 'ok')
+    } catch (e) {
+      toast(cleanError(e), 'err')
+    }
+  }
+
+  const choose = (name: string): void => {
+    onChange(name)
+    setText(name)
+    setQ('')
+    setOpen(false)
+  }
+
+  return (
+    <div className="modelpicker">
+      <div className="tp-input">
+        <Icon name="layers" size={13} />
+        <input
+          value={text}
+          placeholder="从词表选择，输入新名字可加入"
+          onChange={(e) => {
+            setText(e.target.value)
+            setQ(e.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => {
+            setQ('')
+            setOpen(true)
+          }}
+          onBlur={() => {
+            setTimeout(() => {
+              setOpen(false)
+              setQ('')
+              if (text.trim() !== value) setText(value)
+            }, 160)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              if (canCreate) void createModel(text)
+              else if (filtered[0]) choose(filtered[0].name)
+            }
+            if (e.key === 'Escape') {
+              setText(value)
+              setQ('')
+              setOpen(false)
+            }
+          }}
+        />
+        {value && (
+          <button
+            type="button"
+            className="link-btn"
+            title="清除模型"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              onChange('')
+              setText('')
+              setQ('')
+            }}
+          >
+            <Icon name="close" size={11} />
+          </button>
+        )}
+        {canCreate && (
+          <button
+            type="button"
+            className="tp-create"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => void createModel(text)}
+          >
+            <Icon name="plus" size={11} strokeWidth={2.4} /> 新建「{text.trim()}」
+          </button>
+        )}
+      </div>
+
+      {canAdopt && (
+        <div className="mp-hint">
+          「{value.trim()}」不在词表里
+          <button
+            type="button"
+            className="link-btn"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => void createModel(value)}
+          >
+            加入词表
+          </button>
+        </div>
+      )}
+
+      {open && (filtered.length > 0 || canCreate) && (
+        <div className="tp-menu">
+          {(['video', 'image', 'other'] as ModelKind[]).map((k) =>
+            grouped[k].length ? (
+              <React.Fragment key={k}>
+                <div className="mp-group">{MODEL_KIND_LABEL[k]}模型</div>
+                {grouped[k].map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className={'tp-item' + (m.name === value ? ' on' : '')}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => choose(m.name)}
+                  >
+                    <span className="ellipsis">{m.name}</span>
+                    <em>{usage.get(m.name.toLowerCase()) ?? 0}</em>
+                    {m.name === value && <Icon name="check" size={12} strokeWidth={2.6} />}
+                  </button>
+                ))}
+              </React.Fragment>
+            ) : null
+          )}
+          {canCreate && (
+            <button
+              type="button"
+              className="tp-item"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => void createModel(text)}
+            >
+              <Icon name="plus" size={11} strokeWidth={2.4} />
+              <span className="ellipsis">新建模型「{text.trim()}」</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function EntryEditor(): React.ReactElement | null {
   const editorOpen = useStore((s) => s.editorOpen)
   const draft = useStore((s) => s.draft)
@@ -145,6 +346,13 @@ export default function EntryEditor(): React.ReactElement | null {
 
   const assets = useMemo(() => assetMap(data), [data])
   const groups = useMemo(() => groupMap(data), [data])
+  const defaultModelKind = useMemo<ModelKind>(() => {
+    if (!draft) return 'other'
+    const kinds = draft.assetIds.map((id) => assets.get(id)?.kind)
+    if (kinds.includes('video')) return 'video'
+    if (kinds.includes('image')) return 'image'
+    return 'other'
+  }, [draft, assets])
 
   const [busy, setBusy] = useState(false)
   const [dragOver, setDragOver] = useState(false)
@@ -366,12 +574,11 @@ export default function EntryEditor(): React.ReactElement | null {
             </div>
           </Field>
 
-          <Field label="模型" hint="生成这张图用的模型，例如 即梦3.0 / MJ v6 / SDXL">
-            <input
-              className="input"
+          <Field label="模型" hint="从词表选择；输入新名字会加入词表">
+            <ModelPicker
               value={draft.params.model ?? ''}
-              onChange={(e) => patchParam('model', e.target.value)}
-              placeholder="即梦3.0 / MJ v6 / SDXL…"
+              defaultKind={defaultModelKind}
+              onChange={(name) => patchParam('model', name)}
             />
           </Field>
 

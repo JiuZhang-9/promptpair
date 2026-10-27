@@ -32,6 +32,13 @@ const api = {
   deleteTags: (ids: string[]) => ipcRenderer.invoke('tag:deleteMany', ids),
   mergeTags: (fromIds: string[], toId: string) =>
     ipcRenderer.invoke('tag:merge', fromIds, toId),
+  createModel: (name: string, kind: string) => ipcRenderer.invoke('model:create', name, kind),
+  updateModel: (id: string, patch: unknown, syncEntries?: boolean) =>
+    ipcRenderer.invoke('model:update', id, patch, syncEntries),
+  deleteModel: (id: string) => ipcRenderer.invoke('model:delete', id),
+  mergeModels: (fromIds: string[], toId: string, syncEntries?: boolean) =>
+    ipcRenderer.invoke('model:merge', fromIds, toId, syncEntries),
+  resetModels: () => ipcRenderer.invoke('model:reset'),
   createTagGroup: (name: string, color: string) => ipcRenderer.invoke('tagGroup:create', name, color),
   updateTagGroup: (id: string, patch: unknown) => ipcRenderer.invoke('tagGroup:update', id, patch),
   deleteTagGroup: (id: string) => ipcRenderer.invoke('tagGroup:delete', id),

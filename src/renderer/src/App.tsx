@@ -8,6 +8,7 @@ import EntryEditor from './components/EntryEditor'
 import BatchBar from './components/BatchBar'
 import DupPanel from './components/DupPanel'
 import TagManager from './components/TagManager'
+import ModelManager from './components/ModelManager'
 import SettingsPanel from './components/SettingsPanel'
 import ShortcutsHelp from './components/ShortcutsHelp'
 import { Icon, copyText } from './components/ui'
@@ -304,7 +305,7 @@ export default function App(): React.ReactElement {
     )
   }
 
-  const rightOpen = !!detailId || panel === 'dups' || panel === 'tags'
+  const rightOpen = !!detailId || panel === 'dups' || panel === 'tags' || panel === 'models'
 
   return (
     <div className="app">
@@ -322,6 +323,7 @@ export default function App(): React.ReactElement {
           <DetailPanel />
           <DupPanel />
           <TagManager />
+          <ModelManager />
         </div>
       </div>
       <BatchBar />

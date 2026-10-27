@@ -10,6 +10,7 @@ import type {
   ExportOptions,
   ImportResult,
   LibraryData,
+  ModelKind,
   TagCandidateAssignment
 } from '../shared/types'
 import { kindOfExt } from '../shared/types'
@@ -233,6 +234,22 @@ export function registerIpc(ctx: AppCtx): void {
     ctx.lib.flush()
     return { deleted }
   })
+
+  ipcMain.handle('model:create', (_e, name: string, kind: ModelKind) =>
+    ctx.lib.createModel(name, kind)
+  )
+  ipcMain.handle(
+    'model:update',
+    (_e, id: string, patch: { name?: string; kind?: ModelKind }, syncEntries?: boolean) =>
+      ctx.lib.updateModel(id, patch, { syncEntries: !!syncEntries })
+  )
+  ipcMain.handle('model:delete', (_e, id: string) => ctx.lib.deleteModel(id))
+  ipcMain.handle(
+    'model:merge',
+    (_e, fromIds: string[], toId: string, syncEntries?: boolean) =>
+      ctx.lib.mergeModels(fromIds, toId, syncEntries !== false)
+  )
+  ipcMain.handle('model:reset', () => ctx.lib.resetModels())
 
   ipcMain.handle('tag:merge', (_e, fromIds: string[], toId: string) => {
     const r = ctx.lib.mergeTags(fromIds, toId)

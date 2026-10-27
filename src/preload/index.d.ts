@@ -9,6 +9,8 @@ import type {
   EntryDraft,
   ImportResult,
   LibraryData,
+  ModelKind,
+  ModelPreset,
   PromptEntry,
   Tag,
   TagCandidateAssignment,
@@ -72,6 +74,19 @@ export interface PpApi {
   deleteTag(id: string): Promise<boolean>
   deleteTags(ids: string[]): Promise<{ deleted: number }>
   mergeTags(fromIds: string[], toId: string): Promise<TagMergeResult>
+  createModel(name: string, kind: ModelKind): Promise<ModelPreset>
+  updateModel(
+    id: string,
+    patch: { name?: string; kind?: ModelKind },
+    syncEntries?: boolean
+  ): Promise<{ model: ModelPreset; affectedEntries: number }>
+  deleteModel(id: string): Promise<ModelPreset>
+  mergeModels(
+    fromIds: string[],
+    toId: string,
+    syncEntries?: boolean
+  ): Promise<{ merged: number; affectedEntries: number; target: ModelPreset }>
+  resetModels(): Promise<ModelPreset[]>
   createTagGroup(name: string, color: string): Promise<TagGroup>
   updateTagGroup(id: string, patch: { name?: string; color?: string }): Promise<TagGroup>
   deleteTagGroup(id: string): Promise<boolean>

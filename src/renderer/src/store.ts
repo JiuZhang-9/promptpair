@@ -16,7 +16,7 @@ import type { DupReport, ImportOptions, LibrarySnapshot } from '../../preload/in
 
 export type SortKey = 'newest' | 'oldest' | 'rating' | 'title' | 'assets'
 export type KindFilter = 'all' | 'image' | 'video'
-export type PanelKind = 'none' | 'settings' | 'dups' | 'tags'
+export type PanelKind = 'none' | 'settings' | 'dups' | 'tags' | 'models'
 export type BatchTagModal = 'none' | 'add' | 'remove'
 
 export interface Toast {
@@ -50,6 +50,8 @@ export interface StoreState {
   onlyFavorite: boolean
   kind: KindFilter
   platform: string | null
+  /** 模型筛选：词表里的模型名；null = 不筛 */
+  model: string | null
 
   /* 展示 */
   sort: SortKey
@@ -90,6 +92,7 @@ export interface StoreState {
   toggleFavorite: () => void
   setKind: (k: KindFilter) => void
   setPlatform: (p: string | null) => void
+  setModelFilter: (m: string | null) => void
   setSort: (s: SortKey) => void
   setThumbSize: (n: number) => void
   resetFilters: () => void
@@ -197,6 +200,7 @@ export const useStore = create<StoreState>((set, get) => ({
   onlyFavorite: false,
   kind: 'all',
   platform: null,
+  model: null,
 
   sort: 'newest',
   thumbSize: 220,
@@ -320,6 +324,7 @@ export const useStore = create<StoreState>((set, get) => ({
   toggleFavorite: () => set((s) => ({ onlyFavorite: !s.onlyFavorite })),
   setKind: (k) => set({ kind: k }),
   setPlatform: (p) => set({ platform: p }),
+  setModelFilter: (m) => set({ model: m }),
   setSort: (s) => set({ sort: s }),
   setThumbSize: (n) => {
     const next = Math.max(120, Math.min(380, Math.round(n)))
@@ -339,7 +344,8 @@ export const useStore = create<StoreState>((set, get) => ({
       ratingMin: 0,
       onlyFavorite: false,
       kind: 'all',
-      platform: null
+      platform: null,
+      model: null
     }),
   setPanel: (p) => {
     if (p === 'settings' || p === 'none') {
@@ -363,7 +369,7 @@ export const useStore = create<StoreState>((set, get) => ({
   toggleSidebar: () => get().setSidebarCollapsed(!get().sidebarCollapsed),
   toggleRightPanel: () => {
     const s = get()
-    const hasRight = !!s.detailId || s.panel === 'dups' || s.panel === 'tags'
+    const hasRight = !!s.detailId || s.panel === 'dups' || s.panel === 'tags' || s.panel === 'models'
     if (hasRight) {
       get().setRightPanelCollapsed(!s.rightPanelCollapsed)
       return
@@ -711,7 +717,7 @@ export function collMap(data: LibraryData): Map<string, Collection> {
 
 /** 当前筛选与排序后的条目列表 —— 单一真相，侧栏计数与画廊共用 */
 export function selectEntries(s: StoreState): PromptEntry[] {
-  const { data, q, collectionId, tagIds, tagMode, ratingMin, onlyFavorite, kind, platform, sort } = s
+  const { data, q, collectionId, tagIds, tagMode, ratingMin, onlyFavorite, kind, platform, model, sort } = s
   const assets = assetMap(data)
   const tags = tagMap(data)
   const query = q.trim().toLowerCase()
@@ -722,6 +728,10 @@ export function selectEntries(s: StoreState): PromptEntry[] {
     if (onlyFavorite && !e.favorite) continue
     if (ratingMin > 0 && e.rating < ratingMin) continue
     if (platform && (e.source?.platform ?? '') !== platform) continue
+    if (model) {
+      const cur = (e.params?.model ?? '').trim()
+      if (!cur || cur.toLowerCase() !== model.trim().toLowerCase()) continue
+    }
 
     if (kind !== 'all') {
       const has = e.assetIds.some((id) => assets.get(id)?.kind === kind)

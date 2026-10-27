@@ -5,6 +5,8 @@ import type {
   Asset,
   Collection,
   LibraryData,
+  ModelKind,
+  ModelPreset,
   PromptEntry,
   Tag,
   TagGroup,
@@ -13,7 +15,11 @@ import type {
   EntryDraft,
   BatchPatch
 } from '../shared/types'
-import { DEFAULT_TAG_GROUPS, SCHEMA_VERSION } from '../shared/types'
+import { DEFAULT_MODELS, DEFAULT_TAG_GROUPS, SCHEMA_VERSION } from '../shared/types'
+
+function seedModels(): ModelPreset[] {
+  return DEFAULT_MODELS.map((m) => ({ id: newId(), name: m.name, kind: m.kind, builtin: true }))
+}
 
 const LIB_FILE = 'library.json'
 const LIB_BAK = 'library.json.bak'
@@ -54,7 +60,8 @@ function emptyLibrary(name: string): LibraryData {
     assets: [],
     tagGroups,
     tags: [],
-    collections: []
+    collections: [],
+    models: seedModels()
   }
 }
 
@@ -83,6 +90,19 @@ function migrate(raw: any): LibraryData {
   d.tagGroups ??= []
   d.tags ??= []
   d.collections ??= []
+  // 老库没有模型词表：种入默认值；已有词表则补齐字段
+  if (!Array.isArray(d.models) || d.models.length === 0) {
+    d.models = seedModels()
+  } else {
+    d.models = d.models
+      .filter((m: any) => m && typeof m.name === 'string' && m.name.trim())
+      .map((m: any) => ({
+        id: typeof m.id === 'string' && m.id ? m.id : newId(),
+        name: String(m.name).trim(),
+        kind: m.kind === 'image' || m.kind === 'video' ? m.kind : 'other',
+        builtin: !!m.builtin
+      }))
+  }
   for (const e of d.entries) {
     e.tagIds ??= []
     e.collectionIds ??= []
@@ -459,6 +479,108 @@ export class Library {
     this.data.tags = this.data.tags.filter((t) => !from.has(t.id))
     this.touch()
     return { merged: from.size, affectedEntries, target }
+  }
+
+
+  /* ── 模型词表 ── */
+
+  private modelEq(a: string, b: string): boolean {
+    const norm = (v: string): string => v.trim().toLowerCase().replace(/s+/g, ' ')
+    return norm(a) === norm(b)
+  }
+
+  findModelByName(name: string): ModelPreset | undefined {
+    return (this.data.models ?? []).find((m) => this.modelEq(m.name, name))
+  }
+
+  createModel(name: string, kind: ModelKind = 'other'): ModelPreset {
+    const clean = name.trim().replace(/s+/g, ' ')
+    if (!clean) throw new Error('模型名不能为空')
+    if (this.findModelByName(clean)) throw new Error(`模型「${clean}」已在词表中`)
+    const m: ModelPreset = { id: newId(), name: clean, kind, builtin: false }
+    this.data.models ??= []
+    this.data.models.push(m)
+    this.touch()
+    return m
+  }
+
+  /** 重命名 / 改类型；syncEntries 时把条目里的旧名字一并替换 */
+  updateModel(
+    id: string,
+    patch: { name?: string; kind?: ModelKind },
+    opts: { syncEntries?: boolean } = {}
+  ): { model: ModelPreset; affectedEntries: number } {
+    const m = (this.data.models ?? []).find((x) => x.id === id)
+    if (!m) throw new Error('模型不存在')
+    const oldName = m.name
+    if (patch.name !== undefined) {
+      const clean = patch.name.trim().replace(/s+/g, ' ')
+      if (!clean) throw new Error('模型名不能为空')
+      const dup = this.findModelByName(clean)
+      if (dup && dup.id !== id) throw new Error(`模型「${clean}」已在词表中`)
+      m.name = clean
+    }
+    if (patch.kind !== undefined) m.kind = patch.kind
+
+    let affectedEntries = 0
+    if (opts.syncEntries && m.name !== oldName) {
+      const now = nowIso()
+      for (const e of this.data.entries) {
+        const cur = (e.params?.model ?? '').trim()
+        if (!cur || !this.modelEq(cur, oldName)) continue
+        e.params.model = m.name
+        e.updatedAt = now
+        affectedEntries++
+      }
+    }
+    this.touch()
+    return { model: m, affectedEntries }
+  }
+
+  deleteModel(id: string): ModelPreset {
+    const m = (this.data.models ?? []).find((x) => x.id === id)
+    if (!m) throw new Error('模型不存在')
+    this.data.models = (this.data.models ?? []).filter((x) => x.id !== id)
+    this.touch()
+    return m
+  }
+
+  /** 合并模型：来源模型的名称在条目里统一替换为目标名称，然后删除来源条目 */
+  mergeModels(
+    fromIds: string[],
+    toId: string,
+    syncEntries = true
+  ): { merged: number; affectedEntries: number; target: ModelPreset } {
+    const target = (this.data.models ?? []).find((m) => m.id === toId)
+    if (!target) throw new Error('目标模型不存在')
+    const from = new Set(fromIds.filter((id) => id && id !== toId))
+    if (!from.size) throw new Error('没有要合并的模型')
+    const sources = (this.data.models ?? []).filter((m) => from.has(m.id))
+    if (sources.length !== from.size) throw new Error('部分模型不存在，可能已被删除')
+
+    let affectedEntries = 0
+    if (syncEntries) {
+      const names = sources.map((m) => m.name)
+      const now = nowIso()
+      for (const e of this.data.entries) {
+        const cur = (e.params?.model ?? '').trim()
+        if (!cur) continue
+        if (!names.some((n) => this.modelEq(cur, n))) continue
+        e.params.model = target.name
+        e.updatedAt = now
+        affectedEntries++
+      }
+    }
+    this.data.models = (this.data.models ?? []).filter((m) => !from.has(m.id))
+    this.touch()
+    return { merged: from.size, affectedEntries, target }
+  }
+
+  /** 重置为内置默认词表（自定义模型会被移除，条目上的字符串保持不变） */
+  resetModels(): ModelPreset[] {
+    this.data.models = seedModels()
+    this.touch()
+    return this.data.models
   }
 
   /** 把用户确认过的标签名写入记录：已存在的复用，不存在的新建 */
