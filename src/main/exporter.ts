@@ -235,6 +235,7 @@ export async function exportPack(
       group: lib.data.tagGroups.find((g) => g.id === t.groupId)?.name ?? ''
     })),
     collections: lib.data.collections.map((c) => ({ name: c.name, color: c.color })),
+    models: (lib.data.models ?? []).map((m) => ({ name: m.name, kind: m.kind })),
     entries: entries.map((e) => ({
       title: e.title,
       positive: e.positive,
@@ -425,6 +426,7 @@ export interface MergeResult {
   assets: number
   createdTags: string[]
   createdCollections: string[]
+  createdModels: string[]
 }
 
 /** 把 .promptpack 合并进目标库 */
@@ -442,7 +444,13 @@ export async function mergePack(lib: Library, packPath: string): Promise<MergeRe
     if (!fs.existsSync(dataPath)) throw new Error('分享包缺少 data/prompts.json')
     const payload = JSON.parse(fs.readFileSync(dataPath, 'utf8'))
 
-    const result: MergeResult = { entries: 0, assets: 0, createdTags: [], createdCollections: [] }
+    const result: MergeResult = {
+      entries: 0,
+      assets: 0,
+      createdTags: [],
+      createdCollections: [],
+      createdModels: []
+    }
 
     // 标签组：按名字对齐，不存在则建
     const groupNameToId = new Map<string, string>()
@@ -468,6 +476,14 @@ export async function mergePack(lib: Library, packPath: string): Promise<MergeRe
         collNameToId.set(c.name, nc.id)
         result.createdCollections.push(c.name)
       }
+    }
+
+    for (const m of payload.models ?? []) {
+      const name = String(m?.name ?? '').trim()
+      if (!name) continue
+      if (lib.findModelByName(name)) continue
+      lib.createModel(name, m.kind === 'image' || m.kind === 'video' ? m.kind : 'other')
+      result.createdModels.push(name)
     }
 
     for (const item of payload.entries ?? []) {

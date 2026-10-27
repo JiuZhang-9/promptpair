@@ -84,6 +84,10 @@ app.whenReady().then(async () => {
       `  ✓ manifest: magic=${manifest.magic} 格式v${manifest.formatVersion} 记录${manifest.counts.entries} 媒体${manifest.counts.assets}`
     )
     console.log(`  ✓ prompts.json: ${payload.entries.length} 条，首条标题「${payload.entries[0].title}」`)
+    if (!Array.isArray(payload.models) || payload.models.length === 0) {
+      throw new Error('分享包缺少 models 词表')
+    }
+    console.log(`  ✓ 分享包携带模型词表：${payload.models.length} 个`)
     console.log(`  ✓ 首条产物数：${payload.entries[0].assets.length}`)
 
     const mediaCount = names.filter((n) => n.startsWith('media/')).length
