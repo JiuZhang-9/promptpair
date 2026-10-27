@@ -71,6 +71,7 @@ const api = {
 
   /* 分享包 */
   exportPack: (opts: unknown) => ipcRenderer.invoke('pack:export', opts),
+  exportSite: (opts: unknown) => ipcRenderer.invoke('pack:exportSite', opts),
   exportHtml: (opts: unknown) => ipcRenderer.invoke('pack:exportHtml', opts),
   importPack: () => ipcRenderer.invoke('pack:import'),
   exportJson: () => ipcRenderer.invoke('data:exportJson') as Promise<string | null>,

@@ -67,6 +67,8 @@ export interface SourceInfo {
 
 export interface PromptEntry {
   id: Id
+  /** 跨库稳定的来源条目 id；分享包导入/增量更新靠它匹配 */
+  originId?: Id
   title: string
   /** 正向提示词正文 —— 这是整个工具的主角 */
   positive: string
@@ -222,6 +224,10 @@ export interface AppConfig {
   sidebarCollapsed?: boolean
   /** 右栏是否收起（仅 UI 偏好，存 userData，不进库） */
   rightPanelCollapsed?: boolean
+  /** 最近一次「整个库」全量分享包的基线，用于增量导出 */
+  packBaseExportedAt?: string
+  packBasePackId?: string
+  packBaseLibraryId?: string
 
   /* ── AI 辅助打标（可选）── */
   /** 总开关。关闭或没有 Key 时，相关入口整体隐藏 */
@@ -239,6 +245,7 @@ export interface AppConfig {
 /** 新建/编辑条目时提交的草稿 */
 export interface EntryDraft {
   id?: Id
+  originId?: Id
   title: string
   positive: string
   negative: string
@@ -302,6 +309,11 @@ export interface ExportOptions {
   /** 目标 .promptpack 路径 */
   outPath: string
   includeMedia: boolean
+  /** full = 完整包；incremental = 只带基线之后新增/修改的条目 */
+  mode?: 'full' | 'incremental'
+  basePackId?: string
+  baseExportedAt?: string
+  baseLibraryId?: string
 }
 
 export interface UpdateStatus {

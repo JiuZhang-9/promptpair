@@ -19,7 +19,7 @@ import { Library } from './library'
 import type { Config } from './config'
 import { defaultLibraryPath } from './config'
 import { importCaptured, importFiles, type ImportOptions } from './importer'
-import { defaultPackName, exportJson, exportPack, exportSingleHtml, mergePack } from './exporter'
+import { defaultPackName, exportJson, exportPack, exportSingleHtml, exportStandaloneSite, mergePack } from './exporter'
 import { scanDuplicates } from './duplicates'
 import { addFileToLibrary, repairAsset, hammingHex } from './media'
 import { suggestTags, testAiConnection } from './ai'
@@ -457,38 +457,109 @@ export function registerIpc(ctx: AppCtx): void {
 
   /* ───────────── 分享包 ───────────── */
 
-  ipcMain.handle('pack:export', async (_e, opts: { entryIds: string[]; includeMedia: boolean; suggestedName?: string }) => {
-    const collName = opts.suggestedName
+  ipcMain.handle(
+    'pack:export',
+    async (
+      _e,
+      opts: {
+        entryIds: string[]
+        includeMedia: boolean
+        suggestedName?: string
+        outPath?: string
+        mode?: 'full' | 'incremental'
+      }
+    ) => {
+      const collName = opts.suggestedName
+      const mode = opts.mode === 'incremental' ? 'incremental' : 'full'
+      let entryIds = opts.entryIds
+      let basePackId: string | undefined
+      let baseExportedAt: string | undefined
+      let baseLibraryId: string | undefined
 
-    // 自动化验收钩子：设置 PP_EXPORT_TO 时跳过保存对话框直接写指定路径
-    let out = process.env.PP_EXPORT_TO || ''
-    if (!out) {
-      const save = await saveDialog(ctx, {
-        title: '导出分享包',
-        defaultPath: path.join(
-          app.getPath('downloads'),
-          defaultPackName(ctx.lib, collName)
-        ),
-        filters: [{ name: 'PromptPair 分享包', extensions: ['promptpack'] }]
+      if (mode === 'incremental') {
+        baseExportedAt = ctx.cfg.data.packBaseExportedAt
+        basePackId = ctx.cfg.data.packBasePackId
+        baseLibraryId = ctx.cfg.data.packBaseLibraryId
+        if (!baseExportedAt || baseLibraryId !== ctx.lib.data.id) {
+          throw new Error('还没有完整库分享包基线。先导出一次整个库，再用增量导出。')
+        }
+        entryIds = ctx.lib.data.entries
+          .filter((e) => e.updatedAt > baseExportedAt!)
+          .map((e) => e.id)
+        if (!entryIds.length) throw new Error('自上次全量导出后没有新增或修改的条目')
+      }
+
+      // 自动化验收钩子：设置 PP_EXPORT_TO 时跳过保存对话框直接写指定路径
+      let out = opts.outPath || process.env.PP_EXPORT_TO || ''
+      if (!out) {
+        const save = await saveDialog(ctx, {
+          title: mode === 'incremental' ? '导出增量分享包' : '导出分享包',
+          defaultPath: path.join(
+            app.getPath('downloads'),
+            defaultPackName(ctx.lib, collName).replace(
+              '.promptpack',
+              mode === 'incremental' ? '-incremental.promptpack' : '.promptpack'
+            )
+          ),
+          filters: [{ name: 'PromptPair 分享包', extensions: ['promptpack'] }]
+        })
+        if (save.canceled || !save.filePath) return null
+        out = save.filePath.toLowerCase().endsWith('.promptpack')
+          ? save.filePath
+          : save.filePath + '.promptpack'
+      }
+
+      const exportOpts: ExportOptions = {
+        entryIds,
+        outPath: out,
+        includeMedia: opts.includeMedia,
+        mode,
+        basePackId,
+        baseExportedAt,
+        baseLibraryId
+      }
+
+      const r = await exportPack(ctx.lib, exportOpts, { appVersion: APP_VERSION }, (p) => {
+        send(ctx, 'pack:progress', p)
       })
-      if (save.canceled || !save.filePath) return null
-      out = save.filePath.toLowerCase().endsWith('.promptpack')
-        ? save.filePath
-        : save.filePath + '.promptpack'
+      if (
+        mode === 'full' &&
+        ctx.lib.data.entries.length > 0 &&
+        entryIds.length === ctx.lib.data.entries.length
+      ) {
+        ctx.cfg.patch({
+          packBaseExportedAt: r.exportedAt,
+          packBasePackId: r.packId,
+          packBaseLibraryId: ctx.lib.data.id
+        })
+      }
+      send(ctx, 'pack:done', r)
+      return r
     }
+  )
 
-    const exportOpts: ExportOptions = {
-      entryIds: opts.entryIds,
-      outPath: out,
-      includeMedia: opts.includeMedia
+  ipcMain.handle(
+    'pack:exportSite',
+    async (_e, opts: { entryIds: string[]; suggestedName?: string; outPath?: string }) => {
+      let out = opts.outPath || process.env.PP_EXPORT_SITE_TO || ''
+      if (!out) {
+        const save = await saveDialog(ctx, {
+          title: '导出静态站点',
+          defaultPath: path.join(
+            app.getPath('downloads'),
+            defaultPackName(ctx.lib, opts.suggestedName).replace('.promptpack', '-site')
+          )
+        })
+        if (save.canceled || !save.filePath) return null
+        out = save.filePath
+      }
+      return exportStandaloneSite(
+        ctx.lib,
+        { entryIds: opts.entryIds, outDir: out },
+        { appVersion: APP_VERSION }
+      )
     }
-
-    const r = await exportPack(ctx.lib, exportOpts, { appVersion: APP_VERSION }, (p) => {
-      send(ctx, 'pack:progress', p)
-    })
-    send(ctx, 'pack:done', r)
-    return r
-  })
+  )
 
   ipcMain.handle(
     'pack:exportHtml',

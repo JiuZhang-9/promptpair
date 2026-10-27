@@ -249,6 +249,7 @@ export class Library {
         assetIds: [...new Set(draft.assetIds)],
         params: draft.params,
         source: { ...cur.source, ...draft.source },
+        originId: draft.originId ?? cur.originId,
         updatedAt: t
       })
       this.touch()
@@ -256,6 +257,7 @@ export class Library {
     }
     const entry: PromptEntry = {
       id: newId(),
+      originId: draft.originId,
       title: draft.title || '未命名',
       positive: draft.positive || '',
       negative: draft.negative || '',

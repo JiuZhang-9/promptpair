@@ -117,6 +117,21 @@ export interface PpApi {
     entryIds: string[]
     includeMedia: boolean
     suggestedName?: string
+    outPath?: string
+    mode?: 'full' | 'incremental'
+  }): Promise<{
+    path: string
+    entries: number
+    assets: number
+    bytes: number
+    packId: string
+    exportedAt: string
+    mode: 'full' | 'incremental'
+  } | null>
+  exportSite(opts: {
+    entryIds: string[]
+    suggestedName?: string
+    outPath?: string
   }): Promise<{ path: string; entries: number; assets: number; bytes: number } | null>
   exportHtml(opts: {
     entryIds: string[]

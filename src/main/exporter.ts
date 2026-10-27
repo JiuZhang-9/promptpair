@@ -8,7 +8,7 @@ import { addFileToLibrary } from './media'
 import { buildPreviewHtml, type PreviewAsset, type PreviewItem, type PreviewPack } from './preview'
 
 export const PACK_MAGIC = 'promptpair.pack'
-export const PACK_FORMAT_VERSION = 1
+export const PACK_FORMAT_VERSION = 2
 
 /* ────────────────────────── 导出 ────────────────────────── */
 
@@ -191,12 +191,91 @@ export async function exportSingleHtml(
   return { path: opts.outPath, entries: entries.length, assets: plan.length, bytes }
 }
 
+export interface SiteOptions {
+  entryIds: string[]
+  outDir: string
+}
+
+/**
+ * 导出静态站点：一个文件夹，含 index.html、data/prompts.json、media/、thumbs/。
+ * 页面用相对路径读媒体，双击 index.html 或放到任意静态服务器都能浏览。
+ */
+export async function exportStandaloneSite(
+  lib: Library,
+  opts: SiteOptions,
+  meta: { appVersion: string }
+): Promise<{ path: string; entries: number; assets: number; bytes: number }> {
+  const entries = lib.data.entries.filter((e) => opts.entryIds.includes(e.id))
+  if (!entries.length) throw new Error('没有可导出的条目')
+
+  const outDir = opts.outDir
+  if (fs.existsSync(outDir) && !fs.statSync(outDir).isDirectory()) {
+    throw new Error('导出位置已存在同名文件')
+  }
+  fs.mkdirSync(outDir, { recursive: true })
+
+  const packName = path.basename(outDir)
+  const pack = buildPreviewPack(lib, entries, packName, meta.appVersion)
+  let bytes = 0
+  const assetById = new Map(lib.data.assets.map((a) => [a.id, a]))
+  const used = new Set<string>()
+  for (const e of entries) for (const id of e.assetIds) used.add(id)
+
+  let assets = 0
+  for (const id of used) {
+    const a = assetById.get(id)
+    if (!a) continue
+    const copy = (rel?: string): void => {
+      if (!rel) return
+      const src = lib.abs(rel)
+      if (!fs.existsSync(src)) return
+      const dest = path.join(outDir, rel.replace(/\//g, path.sep))
+      fs.mkdirSync(path.dirname(dest), { recursive: true })
+      fs.copyFileSync(src, dest)
+      bytes += fs.statSync(dest).size
+    }
+    copy(a.relPath)
+    copy(a.thumbRel)
+    assets++
+  }
+
+  const html = buildPreviewHtml(pack)
+  const indexPath = path.join(outDir, 'index.html')
+  fs.writeFileSync(indexPath, html, 'utf8')
+  bytes += Buffer.byteLength(html)
+
+  const dataPath = path.join(outDir, 'data', 'prompts.json')
+  fs.mkdirSync(path.dirname(dataPath), { recursive: true })
+  const data = JSON.stringify(pack, null, 2)
+  fs.writeFileSync(dataPath, data, 'utf8')
+  bytes += Buffer.byteLength(data)
+
+  fs.writeFileSync(
+    path.join(outDir, 'README.txt'),
+    `PromptPair 静态站点\n\n` +
+      `直接双击 index.html 即可浏览；也可以把整个文件夹放到任意静态网站服务器。\n` +
+      `条目：${entries.length}，媒体：${assets}\n` +
+      `生成版本：${meta.appVersion}\n`,
+    'utf8'
+  )
+
+  return { path: outDir, entries: entries.length, assets, bytes }
+}
+
 export async function exportPack(
   lib: Library,
   opts: ExportOptions,
   meta: { appVersion: string },
   onProgress?: (p: ExportProgress) => void
-): Promise<{ path: string; entries: number; assets: number; bytes: number }> {
+): Promise<{
+  path: string
+  entries: number
+  assets: number
+  bytes: number
+  packId: string
+  exportedAt: string
+  mode: 'full' | 'incremental'
+}> {
   const entries = lib.data.entries.filter((e) => opts.entryIds.includes(e.id))
   if (!entries.length) throw new Error('没有可导出的条目')
 
@@ -211,13 +290,21 @@ export async function exportPack(
 
   const packName = path.basename(opts.outPath).replace(/\.promptpack$/i, '')
   const previewPack = buildPreviewPack(lib, entries, packName, meta.appVersion)
+  const packId = newId()
+  const exportedAt = nowIso()
+  const mode: 'full' | 'incremental' = opts.mode === 'incremental' ? 'incremental' : 'full'
 
   const manifest = {
     magic: PACK_MAGIC,
     formatVersion: PACK_FORMAT_VERSION,
+    packId,
+    mode,
+    basePackId: mode === 'incremental' ? opts.basePackId : undefined,
+    baseExportedAt: mode === 'incremental' ? opts.baseExportedAt : undefined,
+    baseLibraryId: mode === 'incremental' ? opts.baseLibraryId : undefined,
     appVersion: meta.appVersion,
     library: { id: lib.data.id, name: lib.data.name, schemaVersion: lib.data.schemaVersion },
-    exportedAt: nowIso(),
+    exportedAt,
     counts: { entries: entries.length, assets: assets.length },
     hasMedia: opts.includeMedia,
     entry: 'data/prompts.json'
@@ -226,6 +313,11 @@ export async function exportPack(
   // 机器可读的完整数据（重新导入用）
   const payload = {
     formatVersion: PACK_FORMAT_VERSION,
+    packId,
+    mode,
+    basePackId: manifest.basePackId,
+    baseExportedAt: manifest.baseExportedAt,
+    baseLibraryId: manifest.baseLibraryId,
     appVersion: meta.appVersion,
     exportedAt: manifest.exportedAt,
     schemaVersion: lib.data.schemaVersion,
@@ -237,6 +329,7 @@ export async function exportPack(
     collections: lib.data.collections.map((c) => ({ name: c.name, color: c.color })),
     models: (lib.data.models ?? []).map((m) => ({ name: m.name, kind: m.kind })),
     entries: entries.map((e) => ({
+      originId: e.originId ?? e.id,
       title: e.title,
       positive: e.positive,
       negative: e.negative,
@@ -330,7 +423,15 @@ export async function exportPack(
 
   const bytes = fs.statSync(opts.outPath).size
   onProgress?.({ stage: 'done', done: 1, total: 1 })
-  return { path: opts.outPath, entries: entries.length, assets: assets.length, bytes }
+  return {
+    path: opts.outPath,
+    entries: entries.length,
+    assets: assets.length,
+    bytes,
+    packId,
+    exportedAt,
+    mode
+  }
 }
 
 function readmeText(name: string, version: string, entries: number, assets: number): string {
@@ -502,7 +603,13 @@ export async function mergePack(lib: Library, packPath: string): Promise<MergeRe
         .map((n: string) => collNameToId.get(n))
         .filter(Boolean) as string[]
 
+      const originId = typeof item.originId === 'string' && item.originId ? item.originId : undefined
+      const existing = originId
+        ? lib.data.entries.find((e) => e.originId === originId)
+        : undefined
       lib.upsertEntry({
+        id: existing?.id,
+        originId: originId ?? existing?.originId,
         title: item.title || '未命名',
         positive: item.positive || '',
         negative: item.negative || '',

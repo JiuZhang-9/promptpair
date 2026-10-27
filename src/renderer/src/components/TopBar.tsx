@@ -57,6 +57,7 @@ export default function TopBar(): React.ReactElement {
   const thumbSize = useStore((s) => s.thumbSize)
   const setThumbSize = useStore((s) => s.setThumbSize)
   const data = useStore((s) => s.data)
+  const config = useStore((s) => s.config)
   const version = useStore((s) => s.version)
   const update = useStore((s) => s.update)
   const selectedIds = useStore((s) => s.selectedIds)
@@ -71,6 +72,7 @@ export default function TopBar(): React.ReactElement {
   const importPackDialog = useStore((s) => s.importPackDialog)
   const exportPack = useStore((s) => s.exportPack)
   const exportHtml = useStore((s) => s.exportHtml)
+  const exportSite = useStore((s) => s.exportSite)
   const startCreate = useStore((s) => s.startCreate)
   const setPanel = useStore((s) => s.setPanel)
   const setShortcutsOpen = useStore((s) => s.setShortcutsOpen)
@@ -308,6 +310,31 @@ export default function TopBar(): React.ReactElement {
                     <small>{data.entries.length} 条</small>
                   </div>
                 </button>
+                <button
+                  type="button"
+                  className="dd-item"
+                  onClick={() => {
+                    close()
+                    if (
+                      !config.packBaseExportedAt ||
+                      config.packBaseLibraryId !== data.id
+                    ) {
+                      toast('先导出一次「整个库」作为增量基线', 'info')
+                      return
+                    }
+                    void exportPack([], true, collName, 'incremental')
+                  }}
+                >
+                  <Icon name="refresh" size={14} />
+                  <div>
+                    <div>增量分享包</div>
+                    <small>
+                      {config.packBaseExportedAt && config.packBaseLibraryId === data.id
+                        ? '只带自上次全库导出后的新增/修改'
+                        : '需要先导出整个库建立基线'}
+                    </small>
+                  </div>
+                </button>
                 <div className="dd-sep" />
                 <div className="dd-label">对方不装软件直接看</div>
                 <button
@@ -342,6 +369,23 @@ export default function TopBar(): React.ReactElement {
                   <div>
                     <div>单页 HTML（含原图）</div>
                     <small>文件大；视频只放封面</small>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className="dd-item"
+                  onClick={() => {
+                    const ids = selectedIds.length
+                      ? selectedIds
+                      : selectEntries(useStore.getState()).map((e) => e.id)
+                    close()
+                    void exportSite(ids, collName)
+                  }}
+                >
+                  <Icon name="folder" size={14} />
+                  <div>
+                    <div>静态站点（文件夹）</div>
+                    <small>index.html + media/thumbs，可直接放网站</small>
                   </div>
                 </button>
                 <button

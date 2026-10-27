@@ -140,8 +140,14 @@ export interface StoreState {
 
   doImport: (paths: string[], opts?: ImportOptions) => Promise<ImportResult | null>
   importDialog: (mode: 'files' | 'folder') => Promise<void>
-  exportPack: (ids: string[], includeMedia: boolean, name?: string) => Promise<void>
+  exportPack: (
+    ids: string[],
+    includeMedia: boolean,
+    name?: string,
+    mode?: 'full' | 'incremental'
+  ) => Promise<void>
   exportHtml: (ids: string[], embed: 'thumb' | 'full', name?: string) => Promise<void>
+  exportSite: (ids: string[], name?: string) => Promise<void>
   importPackDialog: () => Promise<void>
   scanDups: () => Promise<void>
   checkUpdate: () => Promise<void>
@@ -152,7 +158,7 @@ export interface StoreState {
 }
 
 const EMPTY_LIB: LibraryData = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   id: '',
   name: '',
   createdAt: '',
@@ -732,12 +738,41 @@ export const useStore = create<StoreState>((set, get) => ({
     await get().doImport(paths, { roots: paths })
   },
 
-  async exportPack(ids, includeMedia, name) {
+  async exportPack(ids, includeMedia, name, mode = 'full') {
+    if (mode === 'full' && !ids.length) return
     try {
-      const r = await window.pp.exportPack({ entryIds: ids, includeMedia, suggestedName: name })
-      if (r) get().toast(`已导出 ${r.entries} 条记录（${(r.bytes / 1024 / 1024).toFixed(1)} MB）`, 'ok')
+      const r = await window.pp.exportPack({
+        entryIds: ids,
+        includeMedia,
+        suggestedName: name,
+        mode
+      })
+      if (r) {
+        await get().refresh()
+        get().toast(
+          mode === 'incremental'
+            ? `已导出增量包：${r.entries} 条新增/修改（${(r.bytes / 1024 / 1024).toFixed(1)} MB）`
+            : `已导出 ${r.entries} 条记录（${(r.bytes / 1024 / 1024).toFixed(1)} MB）`,
+          'ok'
+        )
+      }
     } catch (e) {
       get().toast('导出失败：' + (e as Error).message, 'err')
+    }
+  },
+
+  async exportSite(ids, name) {
+    if (!ids.length) return
+    try {
+      const r = await window.pp.exportSite({ entryIds: ids, suggestedName: name })
+      if (r) {
+        get().toast(
+          `已导出静态站点：${r.entries} 条（${(r.bytes / 1024 / 1024).toFixed(1)} MB）`,
+          'ok'
+        )
+      }
+    } catch (e) {
+      get().toast('导出静态站点失败：' + (e as Error).message, 'err')
     }
   },
 
