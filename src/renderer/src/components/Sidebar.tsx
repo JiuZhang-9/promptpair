@@ -52,7 +52,6 @@ export default function Sidebar(): React.ReactElement {
   const platform = useStore((s) => s.platform)
   const modelFilter = useStore((s) => s.model)
   const setModelFilter = useStore((s) => s.setModelFilter)
-  const panel = useStore((s) => s.panel)
 
   const setCollection = useStore((s) => s.setCollection)
   const toggleTag = useStore((s) => s.toggleTag)
@@ -63,11 +62,9 @@ export default function Sidebar(): React.ReactElement {
   const setKind = useStore((s) => s.setKind)
   const setPlatform = useStore((s) => s.setPlatform)
   const setPanel = useStore((s) => s.setPanel)
-  const setShortcutsOpen = useStore((s) => s.setShortcutsOpen)
   const resetFilters = useStore((s) => s.resetFilters)
   const toast = useStore((s) => s.toast)
   const refresh = useStore((s) => s.refresh)
-  const scanDups = useStore((s) => s.scanDups)
 
   const tags = useMemo(() => tagMap(data), [data])
   const groups = useMemo(() => groupMap(data), [data])
@@ -522,44 +519,6 @@ export default function Sidebar(): React.ReactElement {
             })}
         </Section>
 
-        <Section title="工具" collapsible defaultOpen>
-          <button type="button" className="nav-item" onClick={() => setShortcutsOpen(true)}>
-            <Icon name="help" size={14} />
-            <span className="nav-label">快捷键帮助</span>
-          </button>
-          <button
-            type="button"
-            className={'nav-item' + (panel === 'tags' ? ' on' : '')}
-            onClick={() => setPanel(panel === 'tags' ? 'none' : 'tags')}
-          >
-            <Icon name="tag" size={14} />
-            <span className="nav-label">标签管理</span>
-          </button>
-          <button
-            type="button"
-            className={'nav-item' + (panel === 'models' ? ' on' : '')}
-            onClick={() => setPanel(panel === 'models' ? 'none' : 'models')}
-          >
-            <Icon name="layers" size={14} />
-            <span className="nav-label">模型管理</span>
-          </button>
-          <button
-            type="button"
-            className={'nav-item' + (panel === 'dups' ? ' on' : '')}
-            onClick={() => void scanDups()}
-          >
-            <Icon name="copy" size={14} />
-            <span className="nav-label">重复图检测</span>
-          </button>
-          <button
-            type="button"
-            className={'nav-item' + (panel === 'settings' ? ' on' : '')}
-            onClick={() => setPanel(panel === 'settings' ? 'none' : 'settings')}
-          >
-            <Icon name="settings" size={14} />
-            <span className="nav-label">设置</span>
-          </button>
-        </Section>
       </div>
 
       <div className="sb-foot">

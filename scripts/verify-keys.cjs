@@ -54,6 +54,23 @@ async function press(win, key, opts = {}) {
 
 const js = (win, code) => win.webContents.executeJavaScript(code)
 
+async function openTool(win, label) {
+  const opened = await js(win, `(() => {
+    const t = [...document.querySelectorAll('.tb-actions .dd-trigger')].find(x => x.textContent.trim().startsWith('工具'))
+    if (!t) return false
+    t.click()
+    return true
+  })()`)
+  await sleep(140)
+  const clicked = await js(win, `(() => {
+    const b = [...document.querySelectorAll('.dd-menu .dd-item')].find(x => x.textContent.includes(${JSON.stringify(label)}))
+    if (b) b.click()
+    return !!b
+  })()`)
+  await sleep(350)
+  return opened && clicked
+}
+
 app.whenReady().then(async () => {
   await sleep(2400)
   const win = BrowserWindow.getAllWindows()[0]
@@ -129,27 +146,54 @@ app.whenReady().then(async () => {
     await press(win, 'Escape')
     assert(await js(win, `!document.querySelector('.overlay')`), 'Esc 关闭帮助')
 
-    const helpBtn = await js(win, `
-      (() => {
-        const b = [...document.querySelectorAll('.tb-actions .icon-btn')].find(x => (x.getAttribute('title') || '').includes('键盘快捷键'))
-        if (b) b.click()
-        return !!b
-      })()
-    `)
-    await sleep(400)
-    assert(helpBtn && (await js(win, `!!document.querySelector('.overlay')`)), '顶栏「?」按钮打开帮助')
+    const helpBtn = await openTool(win, '快捷键帮助')
+    assert(helpBtn && (await js(win, `!!document.querySelector('.overlay')`)), '顶栏工具菜单打开帮助')
     await press(win, 'Escape')
 
+    console.log('\n→ 新增全局快捷键…')
+    await press(win, ',', { ctrlKey: true })
+    assert(
+      await js(win, `!!document.querySelector('.settings-modal')`),
+      'Ctrl+, 打开设置'
+    )
+    await press(win, 'Escape')
+    await press(win, '/', { ctrlKey: true })
+    assert(
+      await js(win, `!!document.querySelector('.overlay') && document.querySelector('.overlay').textContent.includes('键盘快捷键')`),
+      'Ctrl+/ 打开快捷键帮助'
+    )
+    await press(win, 'Escape')
+
+    await press(win, 'm', { ctrlKey: true, shiftKey: true })
+    assert(
+      (await js(win, `document.querySelector('.detail .dh-title')?.textContent || ''`)) === '模型管理',
+      'Ctrl+Shift+M 打开模型管理'
+    )
+    await js(win, `document.querySelector('.right-dock .detail-head .icon-btn')?.click()`)
+    await sleep(250)
+    await press(win, 'g', { ctrlKey: true, shiftKey: true })
+    assert(
+      (await js(win, `document.querySelector('.detail .dh-title')?.textContent || ''`)) === '标签管理',
+      'Ctrl+Shift+G 打开标签管理'
+    )
+    await js(win, `document.querySelector('.right-dock .detail-head .icon-btn')?.click()`)
+    await sleep(250)
+    await press(win, 'd', { ctrlKey: true, shiftKey: true })
+    assert(
+      (await js(win, `document.querySelector('.detail .dh-title')?.textContent || ''`)) === '重复图检测',
+      'Ctrl+Shift+D 打开重复图检测'
+    )
+    await js(win, `document.querySelector('.right-dock .detail-head .icon-btn')?.click()`)
+    await sleep(250)
+
+    await press(win, 'f', { ctrlKey: true, shiftKey: true })
+    const favFilterOn = await js(win, `[...document.querySelectorAll('.nav-item')].some(x => x.textContent.includes('收藏') && x.classList.contains('on'))`)
+    assert(favFilterOn, 'Ctrl+Shift+F 只看收藏')
+    await press(win, 'f', { ctrlKey: true, shiftKey: true })
+
     console.log('\n→ 标签管理面板…')
-    const opened = await js(win, `
-      (() => {
-        const item = [...document.querySelectorAll('.nav-item')].find(x => x.textContent.includes('标签管理'))
-        if (item) item.click()
-        return !!item
-      })()
-    `)
-    await sleep(600)
-    assert(opened, '侧栏有「标签管理」入口')
+    const opened = await openTool(win, '标签管理')
+    assert(opened, '顶栏工具菜单有「标签管理」')
     const title = await js(win, `(() => { const t = document.querySelector('.detail .dh-title'); return t ? t.textContent : '' })()`)
     assert(title === '标签管理', '面板已打开', title)
     const rows = await js(win, `document.querySelectorAll('.tm-row').length`)
@@ -157,15 +201,13 @@ app.whenReady().then(async () => {
     await shot(win, '10-tags')
 
     console.log('\n→ AI 设置项…')
-    const settings = await js(win, `
-      (() => {
-        const item = [...document.querySelectorAll('.nav-item')].find(x => x.textContent.trim() === '设置')
-        if (item) item.click()
-        return !!item
-      })()
-    `)
+    const settings = await js(win, `(() => {
+      const b = document.querySelector('.tb-actions [title^="设置"]')
+      if (b) b.click()
+      return !!b
+    })()`)
     await sleep(400)
-    assert(settings, '侧栏有「设置」入口')
+    assert(settings, '顶栏有「设置」入口')
     const scrolled = await js(win, `
       (() => {
         const t = [...document.querySelectorAll('.set-group-title')].find(x => x.textContent.includes('AI 打标'))
@@ -203,14 +245,8 @@ app.whenReady().then(async () => {
     `)
 
     console.log('\n→ 评分 / 收藏快捷键…')
-    await js(win, `
-      (() => {
-        const item = [...document.querySelectorAll('.nav-item')].find(x => x.textContent.trim() === '标签管理')
-        if (item) item.click()
-        return true
-      })()
-    `)
-    await sleep(300)
+    await press(win, 'Escape')
+    await sleep(250)
     await press(win, 'a', { ctrlKey: true })
     await press(win, '1')
     const ratings = await js(win, `window.pp.getState().then(s => s.data.entries.filter(e => e.rating === 1).length)`)
@@ -222,6 +258,7 @@ app.whenReady().then(async () => {
     assert(afterFav !== beforeFav, '按 F 切换收藏', { beforeFav, afterFav })
 
     console.log('\n→ 标签建议与合并弹层…')
+    await openTool(win, '标签管理')
     await js(win, `(() => { const sc = document.querySelector('.detail-scroll'); if (sc) sc.scrollTop = 1e6; return true })()`)
     await sleep(500)
     await shot(win, '13-tags-bottom')

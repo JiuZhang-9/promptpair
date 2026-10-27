@@ -1,6 +1,19 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { Icon, Modal, Toggle } from './ui'
+
+const SECTIONS = [
+  ['library', '素材库'],
+  ['appearance', '外观'],
+  ['import', '导入规则'],
+  ['duplicates', '重复检测'],
+  ['capture', '浏览器插件'],
+  ['ai', 'AI 打标'],
+  ['data', '数据'],
+  ['help', '帮助'],
+  ['update', '更新'],
+  ['about', '关于']
+] as const
 
 function Row({
   label,
@@ -47,6 +60,37 @@ export default function SettingsPanel(): React.ReactElement {
   const [aiTestMsg, setAiTestMsg] = useState('')
   const [aiTesting, setAiTesting] = useState(false)
   const [uiDraft, setUiDraft] = useState(Math.round((config.uiScale ?? 1) * 100))
+  const [activeSection, setActiveSection] = useState<string>('library')
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const sectionTop = (id: string): number => {
+    const box = scrollRef.current
+    const el = document.getElementById('set-' + id)
+    if (!box || !el) return 0
+    return el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop
+  }
+
+  const jumpTo = (id: string): void => {
+    const box = scrollRef.current
+    if (!box) return
+    box.scrollTop = Math.max(0, sectionTop(id) - 8)
+    setActiveSection(id)
+  }
+
+  const onSettingsScroll = (): void => {
+    const box = scrollRef.current
+    if (!box) return
+    if (box.scrollTop + box.clientHeight >= box.scrollHeight - 4) {
+      setActiveSection(SECTIONS[SECTIONS.length - 1][0])
+      return
+    }
+    const top = box.scrollTop + 28
+    let cur = SECTIONS[0][0] as string
+    for (const [id] of SECTIONS) {
+      if (sectionTop(id) <= top) cur = id
+    }
+    setActiveSection(cur)
+  }
 
   useEffect(() => {
     setAiDraft({ baseUrl: config.aiBaseUrl, apiKey: config.aiApiKey, model: config.aiModel })
@@ -69,6 +113,8 @@ export default function SettingsPanel(): React.ReactElement {
 
   useEffect(() => {
     if (panel !== 'settings') return
+    setActiveSection('library')
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }))
     void window.pp.info().then((i) => setInfo(i as typeof info))
   }, [panel])
 
@@ -104,9 +150,23 @@ export default function SettingsPanel(): React.ReactElement {
         </button>
       </div>
 
-      <div className="detail-scroll settings">
-        <div className="set-group">
-          <div className="set-group-title">素材库</div>
+      <div className="settings-body">
+        <nav className="settings-nav" aria-label="设置分组">
+          {SECTIONS.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={activeSection === id ? 'on' : ''}
+              onClick={() => jumpTo(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="detail-scroll settings" ref={scrollRef} onScroll={onSettingsScroll}>
+          <div className="set-group" id="set-library">
+            <div className="set-group-title">素材库</div>
           <Row label="库位置" desc={root}>
             <button type="button" className="btn small" onClick={() => void switchLibrary()}>
               更换
@@ -132,7 +192,7 @@ export default function SettingsPanel(): React.ReactElement {
           </Row>
         </div>
 
-        <div className="set-group">
+        <div className="set-group" id="set-appearance">
           <div className="set-group-title">外观</div>
           <Row label="主题">
             <div className="seg">
@@ -183,7 +243,7 @@ export default function SettingsPanel(): React.ReactElement {
           </Row>
         </div>
 
-        <div className="set-group">
+        <div className="set-group" id="set-import">
           <div className="set-group-title">导入规则</div>
           <Row label="按文件夹名自动打标签" desc="父文件夹名命中已有标签会自动打上">
             <Toggle
@@ -215,7 +275,7 @@ export default function SettingsPanel(): React.ReactElement {
           </Row>
         </div>
 
-        <div className="set-group">
+        <div className="set-group" id="set-duplicates">
           <div className="set-group-title">重复检测</div>
           <Row label="相似判定阈值" desc="0 最严格（几乎完全一致），16 很宽松">
             <div className="thr">
@@ -231,7 +291,7 @@ export default function SettingsPanel(): React.ReactElement {
           </Row>
         </div>
 
-        <div className="set-group">
+        <div className="set-group" id="set-capture">
           <div className="set-group-title">浏览器插件采集</div>
           <Row label="接收端口" desc={capturePort ? `127.0.0.1:${capturePort} 监听中` : '未启动'}>
             <button
@@ -273,7 +333,7 @@ export default function SettingsPanel(): React.ReactElement {
           </div>
         </div>
 
-        <div className="set-group">
+        <div className="set-group" id="set-ai">
           <div className="set-group-title">AI 打标（可选）</div>
           <Row label="启用" desc="不填 Key 时功能整体隐藏；Key 只保存在本机配置里">
             <Toggle
@@ -368,7 +428,7 @@ export default function SettingsPanel(): React.ReactElement {
           )}
         </div>
 
-        <div className="set-group">
+        <div className="set-group" id="set-data">
           <div className="set-group-title">数据</div>
           <Row label="导出全部数据 JSON" desc="纯数据备份，方便迁移">
             <button
@@ -401,7 +461,7 @@ export default function SettingsPanel(): React.ReactElement {
           </Row>
         </div>
 
-        <div className="set-group">
+        <div className="set-group" id="set-help">
           <div className="set-group-title">帮助</div>
           <Row label="键盘快捷键" desc="J/K 移动焦点，Space 选中，1–5 评分，? 查看全部">
             <button type="button" className="btn small" onClick={() => setShortcutsOpen(true)}>
@@ -410,7 +470,7 @@ export default function SettingsPanel(): React.ReactElement {
           </Row>
         </div>
 
-        <div className="set-group">
+        <div className="set-group" id="set-update">
           <div className="set-group-title">更新</div>
           <Row
             label="当前版本"
@@ -435,7 +495,7 @@ export default function SettingsPanel(): React.ReactElement {
           )}
         </div>
 
-        <div className="set-group">
+        <div className="set-group" id="set-about">
           <div className="set-group-title">关于</div>
           <div className="about">
             <div className="about-name">PromptPair</div>
@@ -453,6 +513,7 @@ export default function SettingsPanel(): React.ReactElement {
               <b className="mono">{info?.userData ?? '—'}</b>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </Modal>

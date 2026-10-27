@@ -68,16 +68,27 @@ app.whenReady().then(async () => {
 
   try {
     console.log('\n→ 设置弹窗…')
-    const settingsOpened = await js(win, `
-      (() => {
-        const item = [...document.querySelectorAll('.nav-item')].find(x => x.textContent.trim() === '设置')
-        if (item) item.click()
-        return !!item
-      })()
-    `)
+    const settingsOpened = await js(win, `(() => {
+      const b = document.querySelector('.tb-actions [title^="设置"]')
+      if (b) b.click()
+      return !!b
+    })()`)
     await sleep(500)
     const modal = await js(win, `!!document.querySelector('.overlay .settings-modal')`)
     assert(settingsOpened && modal, '设置以居中弹窗打开', { settingsOpened, modal })
+    const navCount = await js(win, `document.querySelectorAll('.settings-nav button').length`)
+    assert(navCount >= 8, '设置左侧分组导航', navCount)
+    await js(win, `(() => {
+      const b = [...document.querySelectorAll('.settings-nav button')].find(x => x.textContent.trim() === '关于')
+      if (b) b.click()
+      return !!b
+    })()`)
+    await sleep(250)
+    const activeNav = await js(win, `document.querySelector('.settings-nav button.on')?.textContent.trim() || ''`)
+    assert(activeNav === '关于', '设置导航可跳转', activeNav)
+    const settingsScrollTop = await js(win, `document.querySelector('.detail-scroll.settings')?.scrollTop || 0`)
+    assert(settingsScrollTop > 100, '设置导航滚动到对应分组', settingsScrollTop)
+    await shot(win, '22-settings-nav')
     const settingsInDock = await js(win, `!!document.querySelector('.right-dock .settings-modal, .right-dock .settings')`)
     assert(settingsInDock === false, '设置不再占右侧栏', settingsInDock)
     await press(win, 'Escape')

@@ -1580,8 +1580,8 @@ input[type='range']:hover::-webkit-slider-thumb {
   pointer-events: auto;
 }
 
-.card:hover .card-clear,
-.card:focus-within .card-clear {
+.card-stars:hover .card-clear,
+.card-stars:focus-within .card-clear {
   display: flex;
 }
 
@@ -1883,6 +1883,59 @@ button.mini-tag.on {
 .settings-modal .detail-scroll {
   flex: 1;
   min-height: 0;
+}
+
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.settings-nav {
+  width: 168px;
+  flex: none;
+  padding: 10px 8px;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  overflow-y: auto;
+}
+
+.settings-nav button {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  font-size: 13px;
+  color: var(--fg-3);
+  transition: 0.12s;
+}
+
+.settings-nav button:hover {
+  background: var(--hl);
+  color: var(--fg);
+}
+
+.settings-nav button.on {
+  background: var(--hl-strong);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.settings-body > .detail-scroll.settings {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-body .set-group {
+  scroll-margin-top: 8px;
+}
+
+@media (max-width: 760px) {
+  .settings-nav {
+    width: 136px;
+  }
 }
 
 @keyframes slideIn {

@@ -59,6 +59,23 @@ app.whenReady().then(async () => {
   }
   const js = (code) => win.webContents.executeJavaScript(code)
 
+  async function openTool(label) {
+    const opened = await js(`(() => {
+      const t = [...document.querySelectorAll('.tb-actions .dd-trigger')].find(x => x.textContent.trim().startsWith('工具'))
+      if (!t) return false
+      t.click()
+      return true
+    })()`)
+    await sleep(140)
+    const clicked = await js(`(() => {
+      const b = [...document.querySelectorAll('.dd-menu .dd-item')].find(x => x.textContent.includes(${JSON.stringify(label)}))
+      if (b) b.click()
+      return !!b
+    })()`)
+    await sleep(350)
+    return opened && clicked
+  }
+
   try {
     fs.rmSync(LIB, { recursive: true, force: true })
     fs.mkdirSync(LIB, { recursive: true })
@@ -92,14 +109,8 @@ app.whenReady().then(async () => {
     // createModel 走的是主进程 IPC，重载后 store 才能拿到新词表
     win.webContents.reload()
     await sleep(2400)
-    const openedModels = await js(`
-      (() => {
-        const b = [...document.querySelectorAll('.nav-item')].find(x => x.textContent.trim() === '模型管理')
-        if (b) b.click()
-        return !!b
-      })()
-    `)
-    assert(openedModels, '打开模型管理面板')
+    const openedModels = await openTool('模型管理')
+    assert(openedModels, '顶栏工具菜单打开模型管理')
     await sleep(500)
     const sugNames = await js(`
       Array.from(document.querySelectorAll('.tm-sug-names')).map(x => x.textContent.trim())
@@ -120,13 +131,7 @@ app.whenReady().then(async () => {
     assert(dbl && renameValue === '即梦 4.0', '双击模型名进入重命名', renameValue)
     await js(`document.querySelector('.tm-rename')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
     await sleep(200)
-    await js(`
-      (() => {
-        const b = [...document.querySelectorAll('.nav-item')].find(x => x.textContent.trim() === '模型管理')
-        if (b) b.click()
-        return !!b
-      })()
-    `)
+    await js(`document.querySelector('.right-dock .detail-head .icon-btn')?.click()`)
     await sleep(300)
 
     console.log('\n→ 条目与合并…')

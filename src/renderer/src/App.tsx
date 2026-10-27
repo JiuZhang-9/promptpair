@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react'
+import type { PromptEntry } from '../../shared/types'
 import { selectEntries, useStore } from './store'
 import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
@@ -12,6 +13,23 @@ import ModelManager from './components/ModelManager'
 import SettingsPanel from './components/SettingsPanel'
 import ShortcutsHelp from './components/ShortcutsHelp'
 import { Icon, copyText } from './components/ui'
+
+function allTextForEntry(entry: PromptEntry): string {
+  const rows: [string, string][] = []
+  if (entry.params?.model) rows.push(['模型', entry.params.model])
+  if (entry.params?.width && entry.params?.height)
+    rows.push(['尺寸', `${entry.params.width} × ${entry.params.height}`])
+  if (entry.params?.seed) rows.push(['Seed', entry.params.seed])
+  if (entry.params?.steps) rows.push(['步数', String(entry.params.steps)])
+  if (entry.params?.cfg) rows.push(['CFG', String(entry.params.cfg)])
+  if (entry.params?.sampler) rows.push(['采样器', entry.params.sampler])
+  const parts: string[] = []
+  if (entry.positive) parts.push(entry.positive)
+  if (entry.negative) parts.push('Negative: ' + entry.negative)
+  if (entry.note) parts.push('备注：' + entry.note)
+  if (rows.length) parts.push(rows.map(([k, v]) => `${k}: ${v}`).join('\n'))
+  return parts.join('\n\n')
+}
 
 function Toasts(): React.ReactElement {
   const toasts = useStore((s) => s.toasts)
@@ -79,6 +97,12 @@ export default function App(): React.ReactElement {
   const selectAllFiltered = useStore((s) => s.selectAllFiltered)
   const patchEntries = useStore((s) => s.patchEntries)
   const exportPack = useStore((s) => s.exportPack)
+  const exportHtml = useStore((s) => s.exportHtml)
+  const importDialog = useStore((s) => s.importDialog)
+  const applyConfig = useStore((s) => s.applyConfig)
+  const setPanel = useStore((s) => s.setPanel)
+  const scanDups = useStore((s) => s.scanDups)
+  const toggleFavoriteFilter = useStore((s) => s.toggleFavorite)
   const toast = useStore((s) => s.toast)
   const panel = useStore((s) => s.panel)
   const sidebarCollapsed = useStore((s) => s.sidebarCollapsed)
@@ -129,7 +153,94 @@ export default function App(): React.ReactElement {
         return
       }
 
-      if (mod && e.key.toLowerCase() === 'c') {
+      const targetIds = (): string[] => {
+        const state = useStore.getState()
+        if (state.selectedIds.length) return state.selectedIds
+        const list = selectEntries(state)
+        return state.focusIndex != null && list[state.focusIndex]
+          ? [list[state.focusIndex].id]
+          : []
+      }
+
+      if (mod && e.key === ',') {
+        e.preventDefault()
+        setPanel('settings')
+        return
+      }
+      if (mod && e.key === '/') {
+        e.preventDefault()
+        setShortcutsOpen(true)
+        return
+      }
+      if (mod && e.key.toLowerCase() === 'o') {
+        e.preventDefault()
+        void importDialog(e.shiftKey ? 'folder' : 'files')
+        return
+      }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault()
+        const ids = targetIds()
+        if (ids.length) void exportHtml(ids, 'thumb')
+        else toast('先选中记录，再导出单页 HTML', 'info')
+        return
+      }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault()
+        const state = useStore.getState()
+        const ids = targetIds()
+        const targets = state.data.entries.filter((x) => ids.includes(x.id))
+        if (targets.length) {
+          void copyText(targets.map(allTextForEntry).join('\n\n---\n\n'))
+            .then(() => toast('已复制全部内容', 'ok'))
+            .catch(() => toast('复制失败，请手动选中文本', 'err'))
+        }
+        return
+      }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        toggleFavoriteFilter()
+        return
+      }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'm') {
+        e.preventDefault()
+        setPanel('models')
+        return
+      }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'g') {
+        e.preventDefault()
+        setPanel('tags')
+        return
+      }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault()
+        void scanDups()
+        setPanel('dups')
+        return
+      }
+      if (mod && (e.key === '=' || e.key === '+')) {
+        e.preventDefault()
+        const cur = Math.round((useStore.getState().config.uiScale ?? 1) * 100)
+        const next = Math.min(110, cur + 5)
+        void applyConfig({ uiScale: next / 100 })
+        toast(`界面大小 ${next}%`, 'info')
+        return
+      }
+      if (mod && e.key === '-') {
+        e.preventDefault()
+        const cur = Math.round((useStore.getState().config.uiScale ?? 1) * 100)
+        const next = Math.max(90, cur - 5)
+        void applyConfig({ uiScale: next / 100 })
+        toast(`界面大小 ${next}%`, 'info')
+        return
+      }
+      if (mod && e.key === '0') {
+        e.preventDefault()
+        void applyConfig({ uiScale: 1 })
+        toast('界面大小 100%', 'info')
+        return
+      }
+
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'c') {
         const state = useStore.getState()
         const list = selectEntries(state)
         const target =
@@ -275,6 +386,12 @@ export default function App(): React.ReactElement {
     selectAllFiltered,
     patchEntries,
     exportPack,
+    exportHtml,
+    importDialog,
+    applyConfig,
+    setPanel,
+    scanDups,
+    toggleFavoriteFilter,
     toast,
     toggleSidebar,
     toggleRightPanel

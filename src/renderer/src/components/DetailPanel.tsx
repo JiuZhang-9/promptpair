@@ -35,10 +35,10 @@ export default function DetailPanel(): React.ReactElement | null {
       // 有弹窗（设置 / AI / 合并）时，别让 Esc 同时关掉背后的详情
       if (document.querySelector('.overlay')) return
       if (e.key === 'Escape') openDetail(null)
-      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ']') {
         setIdx((i) => (i + 1) % Math.max(1, entry.assetIds.length))
       }
-      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === '[') {
         setIdx((i) => (i - 1 + entry.assetIds.length) % Math.max(1, entry.assetIds.length))
       }
       if (e.key === 'e') startEdit(entry.id)

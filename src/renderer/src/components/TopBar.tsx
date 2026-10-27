@@ -69,6 +69,7 @@ export default function TopBar(): React.ReactElement {
   const startCreate = useStore((s) => s.startCreate)
   const setPanel = useStore((s) => s.setPanel)
   const setShortcutsOpen = useStore((s) => s.setShortcutsOpen)
+  const scanDups = useStore((s) => s.scanDups)
   const sidebarCollapsed = useStore((s) => s.sidebarCollapsed)
   const rightPanelCollapsed = useStore((s) => s.rightPanelCollapsed)
   const toggleSidebar = useStore((s) => s.toggleSidebar)
@@ -385,6 +386,80 @@ export default function TopBar(): React.ReactElement {
             )}
           </Dropdown>
 
+          <Dropdown
+            width={260}
+            trigger={() => (
+              <span className="btn">
+                <Icon name="grid" size={14} />
+                工具
+                <Icon name="chevronDown" size={12} />
+              </span>
+            )}
+          >
+            {(close) => (
+              <>
+                <button
+                  type="button"
+                  className="dd-item"
+                  onClick={() => {
+                    close()
+                    setPanel('tags')
+                  }}
+                >
+                  <Icon name="tag" size={14} />
+                  <div>
+                    <div>标签管理</div>
+                    <small>重命名、合并、清理标签</small>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className="dd-item"
+                  onClick={() => {
+                    close()
+                    void scanDups()
+                    setPanel('dups')
+                  }}
+                >
+                  <Icon name="copy" size={14} />
+                  <div>
+                    <div>重复图检测</div>
+                    <small>找出看起来一样的近似重复</small>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className="dd-item"
+                  onClick={() => {
+                    close()
+                    setPanel('models')
+                  }}
+                >
+                  <Icon name="layers" size={14} />
+                  <div>
+                    <div>模型管理</div>
+                    <small>维护模型词表，合并历史写法</small>
+                  </div>
+                </button>
+                <div className="dd-sep" />
+                <button
+                  type="button"
+                  className="dd-item"
+                  onClick={() => {
+                    close()
+                    setShortcutsOpen(true)
+                  }}
+                >
+                  <Icon name="help" size={14} />
+                  <div>
+                    <div>快捷键帮助</div>
+                    <small>查看全部键位</small>
+                  </div>
+                </button>
+              </>
+            )}
+          </Dropdown>
+
           <button
             type="button"
             className={'icon-btn' + (sidebarCollapsed ? ' on' : '')}
@@ -405,17 +480,8 @@ export default function TopBar(): React.ReactElement {
 
           <button
             type="button"
-            className="icon-btn"
-            title="键盘快捷键 (?)"
-            onClick={() => setShortcutsOpen(true)}
-          >
-            <Icon name="help" size={16} />
-          </button>
-
-          <button
-            type="button"
             className={'icon-btn' + (panel === 'settings' ? ' on' : '')}
-            title="设置"
+            title="设置 (Ctrl+,)"
             onClick={() => setPanel(panel === 'settings' ? 'none' : 'settings')}
           >
             <Icon name="settings" size={16} />

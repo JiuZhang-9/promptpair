@@ -86,6 +86,11 @@ app.whenReady().then(async () => {
     await shot(win, '20-readability-c')
 
     console.log('\n→ 卡片打星 / 清除')
+    const clearDisplay = await js(
+      win,
+      `getComputedStyle(document.querySelector('.card .card-clear')).display`
+    )
+    assert(clearDisplay === 'none', '清除 × 默认隐藏', clearDisplay)
     const firstId = await js(win, `document.querySelector('.card').dataset.id`)
     await js(win, `document.querySelector('.card [data-star="5"]').click()`)
     await sleep(350)
@@ -142,7 +147,7 @@ app.whenReady().then(async () => {
     await js(win, `window.pp.patchConfig({ uiScale: 1 })`)
     await sleep(250)
     assert(Math.abs(win.webContents.getZoomFactor() - 1) < 0.001, '100% 页面缩放', win.webContents.getZoomFactor())
-    await js(win, `document.querySelector('.tb-actions [title="设置"]')?.click()`)
+    await js(win, `document.querySelector('.tb-actions [title^="设置"]')?.click()`)
     await sleep(250)
     assert(
       await js(win, `!!document.querySelector('.settings-modal') && document.querySelector('.settings-modal').textContent.includes('界面大小')`),
