@@ -190,6 +190,17 @@ export async function runCli(args: string[]): Promise<number> {
         const it = batch.entries[i]
         const key = it.title || it.originId || `#${i}`
         try {
+          // dry-run 只做计划统计，绝不写库（0.12.1 修复：此前 dry-run 误执行真实写入）
+          const exist = it.originId ? findEntryByOriginId(lib, it.originId) : undefined
+          if (dryRun) {
+            if (exist) updated++
+            else created++
+            for (const c of it.collections ?? []) {
+              if (!lib.data.collections.find((x) => x.name === c)) newCollections.add(c)
+            }
+            continue
+          }
+
           const assetIds: string[] = []
           for (const a of it.assets ?? []) {
             const res = await addFileToLibrary(lib, a.path)
@@ -223,7 +234,6 @@ export async function runCli(args: string[]): Promise<number> {
             source: it.source ?? {}
           }
 
-          const exist = it.originId ? findEntryByOriginId(lib, it.originId) : undefined
           if (exist) {
             lib.upsertEntry({ ...draft, id: exist.id, originId: it.originId })
             updated++
