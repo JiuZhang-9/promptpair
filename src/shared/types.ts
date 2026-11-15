@@ -129,7 +129,8 @@ export interface ModelPreset {
 /** 首次建库 / 老库升级时种入的默认模型词表。
  *  命名规范（2026-11-15 用户定）：英文官方名，不带版本号 */
 export const DEFAULT_MODELS: { name: string; kind: ModelKind }[] = [
-  { name: 'Seedream', kind: 'video' },
+  // Seedream = 字节跳动的图像模型（Seedance 才是视频模型）
+  { name: 'Seedream', kind: 'image' },
   { name: 'Kling', kind: 'video' },
   { name: 'Runway', kind: 'video' },
   { name: 'Sora', kind: 'video' },

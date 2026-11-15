@@ -18,6 +18,7 @@ rel3/
 # 图标由 scripts/make-icon.mjs 生成，但 build/icon.ico 需要入库
 # （electron-builder 打包时直接读取），因此只忽略临时截图
 build/shots/
+build/shots-cv/
 
 # 视觉验收用的演示库与临时 userData
 .smoke/

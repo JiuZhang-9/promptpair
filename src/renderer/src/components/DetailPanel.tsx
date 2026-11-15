@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { assetMap, collMap, groupMap, mediaUrl, tagMap, thumbUrl, useStore } from '../store'
-import { copyVariants } from '../copyVariants'
+import { copyVariants, isMjEntry } from '../copyVariants'
 import { Icon, Stars, copyText, formatBytes, formatDate, formatDuration } from './ui'
 
 export default function DetailPanel(): React.ReactElement | null {
@@ -74,11 +74,9 @@ export default function DetailPanel(): React.ReactElement | null {
   if (entry.params?.reference) paramRows.push(['参考图', entry.params.reference])
   for (const [k, v] of Object.entries(entry.params?.extra ?? {})) paramRows.push([k, String(v)])
 
-  // MJ 条目：备注(vibe)视为提示词的一部分，主复制按钮带 vibe；附加码/参数复制行
+  // MJ 条目：正文 + 参数段可组合成四种复制方式
   const mjVariants = copyVariants(entry)
-  const hasMjData = !!(
-    entry.params?.extra?.['mjCodes'] || entry.params?.extra?.['mjCodeparam']
-  )
+  const hasMjData = isMjEntry(entry)
 
   const allText = (): string => {
     const parts: string[] = []
@@ -243,7 +241,7 @@ export default function DetailPanel(): React.ReactElement | null {
                 <button
                   type="button"
                   className={'copy-btn' + (copied === 'pos' ? ' done' : '')}
-                  onClick={() => void copy(hasMjData ? mjVariants[0].text : entry.positive, 'pos')}
+                  onClick={() => void copy(entry.positive, 'pos')}
                   disabled={!entry.positive}
                 >
                   <Icon name={copied === 'pos' ? 'check' : 'copy'} size={12} />
@@ -262,7 +260,7 @@ export default function DetailPanel(): React.ReactElement | null {
             </div>
             <div
               className={'pbox' + (entry.positive ? '' : ' placeholder')}
-              onDoubleClick={() => void copy(hasMjData ? mjVariants[0].text : entry.positive, 'pos')}
+              onDoubleClick={() => void copy(entry.positive, 'pos')}
             >
               {entry.positive || '还没有提示词。双击编辑，或点右上角编辑按钮补充。'}
             </div>

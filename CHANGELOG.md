@@ -25,6 +25,22 @@
 
 ---
 
+## [0.12.3] - 2026-11-16
+
+### 修复
+
+- **MJ 条目复制不到参数**：此前只有备注里带 MJ 参数（`mjCodeparam` / `mjCodes`）的条目才显示参数复制行；从公众号批量录入的条目把参数拆成了 `aspect / stylize / chaos / weird / profile / sref / version …` 字段，导致卡片菜单与右侧详情**都没有「提示词+参数」入口**。现在两条来源都认：条目自带原始参数串就原样用，没有就由结构化字段重建（含 `--no` 负向段）
+- 模型词表：`Seedream` 误标为「视频」类型（Seedream 是字节跳动的图像模型，视频模型是 Seedance），默认词表已改为「图片」
+
+### 变更
+
+- 复制菜单拆成四档，卡片悬停菜单与右侧详情一致：**仅复制提示词 / 复制提示词+MJ参数 / 仅复制MJ参数 / 复制风格码+MJ参数**
+- 「复制风格码+MJ参数」把 `--sref` / `--profile` 提到参数段最前面，其余参数（`--ar --v --chaos --stylize --raw --hd --no …`）跟在后面；条目没有风格码时该档禁用
+- 非 MJ 条目（如 Seedream、通用生图）只保留「仅复制提示词」，不再出现空的参数档
+- MJ 条目判定放宽：`params.model` 为 Midjourney，或带任一 MJ 专有字段（`stylize / chaos / weird / sw / sref / profile / raw / hd / tile`，或 `aspect + version` 同时存在）即视为 MJ 条目
+
+---
+
 ## [0.12.2] - 2026-11-16
 
 ### 变更

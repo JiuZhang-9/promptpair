@@ -189,7 +189,7 @@ function Card({
                 type="button"
                 className="mini-btn"
                 data-copy="prompt"
-                title="复制提示词（悬停可选提示词+参数）"
+                title="复制提示词（悬停可选：提示词+参数 / 仅参数 / 风格码+参数）"
                 onClick={(e) => {
                   e.stopPropagation()
                   onCopy()
@@ -198,10 +198,9 @@ function Card({
                 <Icon name="copy" size={13} />
               </button>
               <div className="mini-copy-menu" role="menu">
-                {(['prompt', 'promptParams'] as const).map((vid) => {
-                  const v = variants.find((x) => x.id === vid)
-                  if (!v || v.disabled) return null
-                  return (
+                {variants
+                  .filter((v) => !v.disabled)
+                  .map((v) => (
                     <button
                       key={v.id}
                       type="button"
@@ -215,8 +214,7 @@ function Card({
                     >
                       {v.label}
                     </button>
-                  )
-                })}
+                  ))}
               </div>
             </div>
           )}
