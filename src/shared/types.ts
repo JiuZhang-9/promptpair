@@ -126,22 +126,21 @@ export interface ModelPreset {
   builtin?: boolean
 }
 
-/** 首次建库 / 老库升级时种入的默认模型词表 */
+/** 首次建库 / 老库升级时种入的默认模型词表。
+ *  命名规范（2026-11-15 用户定）：英文官方名，不带版本号 */
 export const DEFAULT_MODELS: { name: string; kind: ModelKind }[] = [
-  { name: '即梦 3.0', kind: 'video' },
-  { name: '可灵 1.6', kind: 'video' },
-  { name: 'Runway Gen-3', kind: 'video' },
+  { name: 'Seedream', kind: 'video' },
+  { name: 'Kling', kind: 'video' },
+  { name: 'Runway', kind: 'video' },
   { name: 'Sora', kind: 'video' },
-  { name: 'Veo 3', kind: 'video' },
-  { name: '海螺 02', kind: 'video' },
-  { name: 'PixVerse V4', kind: 'video' },
-  { name: 'Vidu Q1', kind: 'video' },
-  { name: 'Wan 2.1', kind: 'video' },
-  { name: 'MJ V6.1', kind: 'image' },
-  { name: 'MJ V7', kind: 'image' },
+  { name: 'Veo', kind: 'video' },
+  { name: 'Hailuo', kind: 'video' },
+  { name: 'PixVerse', kind: 'video' },
+  { name: 'Vidu', kind: 'video' },
+  { name: 'Wan', kind: 'video' },
+  { name: 'Midjourney', kind: 'image' },
   { name: 'SDXL', kind: 'image' },
-  { name: 'Flux.1', kind: 'image' },
-  { name: '即梦图片', kind: 'image' }
+  { name: 'Flux', kind: 'image' }
 ]
 
 export const MODEL_KIND_LABEL: Record<ModelKind, string> = {
@@ -202,6 +201,8 @@ export interface AppConfig {
   thumbSize: number
   /** 界面比例：0.9–1.1，默认 1（在已放大的基础字号上再缩放） */
   uiScale?: number
+  /** 画廊布局：grid 对齐网格 / masonry 瀑布流 */
+  galleryLayout?: 'grid' | 'masonry'
   /** 近似重复判定阈值（汉明距离 0–64，越小越严格） */
   duplicateThreshold: number
   /** 导入时是否按父文件夹名自动打标 */

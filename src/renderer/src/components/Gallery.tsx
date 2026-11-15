@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { useShallow } from 'zustand/react/shallow'
 import type { Asset, PromptEntry } from '../../../shared/types'
 import { assetMap, selectEntries, tagMap, thumbUrl, mediaUrl, useStore, groupMap } from '../store'
+import { copyVariants, variantText, type CopyVariant } from '../copyVariants'
 import { Empty, Icon, Stars, copyText, formatClock } from './ui'
 
 const PAD = 18
@@ -28,6 +29,7 @@ interface MarqueeDrag {
 function Card({
   entry,
   width,
+  thumbH,
   assets,
   tagInfo,
   activeTagIds,
@@ -37,12 +39,15 @@ function Card({
   onOpenDetail,
   onEdit,
   onCopy,
+  onCopyVariant,
   onRate,
   onToggleFavorite,
   onTagClick
 }: {
   entry: PromptEntry
   width: number
+  /** 瀑布流模式下的缩略图高度（按首图纵横比）；缺省为正方形 */
+  thumbH?: number
   assets: Map<string, Asset>
   tagInfo: Map<string, { name: string; color: string }>
   activeTagIds: string[]
@@ -52,6 +57,7 @@ function Card({
   onOpenDetail: () => void
   onEdit: () => void
   onCopy: () => void
+  onCopyVariant?: (id: CopyVariant['id']) => void
   onRate: (v: number) => void
   onToggleFavorite: () => void
   onTagClick: (tagId: string) => void
@@ -61,6 +67,10 @@ function Card({
   const multi = entry.assetIds.length > 1
   const model = entry.params?.model?.trim()
   const shownTags = entry.tagIds.slice(0, model ? 1 : 2)
+  const variants = useMemo(() => copyVariants(entry), [entry])
+  const codeMode = entry.params?.extra?.['mjCodeMode']
+  const codeCount = entry.params?.extra?.['mjCodeCount']
+  const reuse = entry.params?.extra?.['mjReuse']
 
   const [previewing, setPreviewing] = useState(false)
   const previewRef = useRef<HTMLVideoElement | null>(null)
@@ -102,7 +112,7 @@ function Card({
     >
       <div
         className="card-thumb"
-        style={{ height: width }}
+        style={{ height: thumbH ?? width }}
         onMouseEnter={video ? () => setPreviewing(true) : undefined}
         onMouseLeave={video ? () => setPreviewing(false) : undefined}
       >
@@ -132,6 +142,24 @@ function Card({
 
         <div className="card-badges">
           <span className="badge-left">
+            {codeMode === 'solo' && (
+              <span className="badge code solo" title="独码：单个风格码即可复现效果">
+                独码
+              </span>
+            )}
+            {codeMode === 'multi' && (
+              <span
+                className="badge code multi"
+                title={`混码 ${codeCount ?? '多'} 个：整组一起用，别拆开`}
+              >
+                混码{codeCount ? '·' + codeCount : ''}
+              </span>
+            )}
+            {reuse && (
+              <span className="badge reuse" title={`这套码被复用了 ${reuse} 次`}>
+                ★{reuse}
+              </span>
+            )}
             {video && (
               <span className="badge play">
                 <Icon name="play" size={10} strokeWidth={2.4} />
@@ -156,17 +184,41 @@ function Card({
 
         <div className="card-actions">
           {entry.positive && (
-            <button
-              type="button"
-              className="mini-btn"
-              title="复制提示词"
-              onClick={(e) => {
-                e.stopPropagation()
-                onCopy()
-              }}
-            >
-              <Icon name="copy" size={13} />
-            </button>
+            <div className="mini-copy">
+              <button
+                type="button"
+                className="mini-btn"
+                data-copy="prompt"
+                title="复制提示词（悬停可选提示词+参数）"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onCopy()
+                }}
+              >
+                <Icon name="copy" size={13} />
+              </button>
+              <div className="mini-copy-menu" role="menu">
+                {(['prompt', 'promptParams'] as const).map((vid) => {
+                  const v = variants.find((x) => x.id === vid)
+                  if (!v || v.disabled) return null
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      className="mini-copy-item"
+                      role="menuitem"
+                      data-copy={v.id}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onCopyVariant?.(v.id)
+                      }}
+                    >
+                      {v.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           )}
           <button
             type="button"
@@ -255,6 +307,7 @@ function Card({
 export default function Gallery(): React.ReactElement {
   const data = useStore((s) => s.data)
   const thumbSize = useStore((s) => s.thumbSize)
+  const galleryLayout = useStore((s) => s.galleryLayout)
   const selectedIds = useStore((s) => s.selectedIds)
   const focusIndex = useStore((s) => s.focusIndex)
   const setFocusIndex = useStore((s) => s.setFocusIndex)
@@ -327,11 +380,47 @@ export default function Gallery(): React.ReactElement {
   const rows = Math.ceil(entries.length / cols)
   const totalH = rows * rowH + PAD * 2
 
+  const masonry = galleryLayout === 'masonry'
+
+  // 瀑布流：按首图纵横比逐个放入最矮列，记录每张卡的绝对位置
+  const mLayout = useMemo(() => {
+    if (!masonry) return null
+    const colH = new Array(cols).fill(PAD)
+    const pos: { x: number; y: number; h: number; imgH: number }[] = []
+    for (const e of entries) {
+      const a = assets.get(e.assetIds[0] ?? '')
+      const aspect = a?.width && a?.height ? a.width / a.height : 1
+      const imgH = Math.max(60, Math.round(cardW / aspect))
+      const h = imgH + TEXT_H
+      let c = 0
+      for (let i = 1; i < colH.length; i++) if (colH[i] < colH[c]) c = i
+      pos.push({ x: PAD + c * (cardW + GAP), y: colH[c], h, imgH })
+      colH[c] = colH[c] + h + GAP
+    }
+    const total = Math.max(PAD, ...colH, PAD) + PAD
+    return { pos, total }
+  }, [masonry, entries, assets, cardW, cols])
+
   const startRow = Math.max(0, Math.floor((scrollTop - PAD) / rowH) - 2)
   const endRow = Math.min(rows, Math.ceil((scrollTop + viewport.h - PAD) / rowH) + 2)
   const from = startRow * cols
   const to = Math.min(entries.length, endRow * cols)
   const visible = entries.slice(from, to)
+
+  // 瀑布流的可视窗口：按 y 区间过滤
+  const mVisible = useMemo(() => {
+    if (!mLayout) return []
+    const buf = 600
+    const lo = scrollTop - buf
+    const hi = scrollTop + viewport.h + buf
+    const out: number[] = []
+    for (let i = 0; i < entries.length; i++) {
+      const p = mLayout.pos[i]
+      if (p.y + p.h < lo || p.y > hi) continue
+      out.push(i)
+    }
+    return out
+  }, [mLayout, scrollTop, viewport.h, entries.length])
 
   const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     setScrollTop(e.currentTarget.scrollTop)
@@ -343,19 +432,27 @@ export default function Gallery(): React.ReactElement {
     setScrollTop(0)
   }, [q, entries.length])
 
-  // 键盘焦点移动时，把目标行滚进视野
+  // 键盘焦点移动时，把目标行/卡片滚进视野（瀑布流按卡片实际位置）
   useEffect(() => {
     if (focusIndex == null) return
     const el = scrollRef.current
     if (!el) return
-    const row = Math.floor(focusIndex / cols)
-    const top = PAD + row * rowH
-    const bottom = top + rowH
+    let top: number, bottom: number
+    if (masonry && mLayout) {
+      const p = mLayout.pos[focusIndex]
+      if (!p) return
+      top = p.y
+      bottom = p.y + p.h
+    } else {
+      const row = Math.floor(focusIndex / cols)
+      top = PAD + row * rowH
+      bottom = top + rowH
+    }
     if (top < el.scrollTop + PAD) el.scrollTop = Math.max(0, top - PAD)
     else if (bottom > el.scrollTop + el.clientHeight) {
       el.scrollTop = bottom - el.clientHeight + PAD
     }
-  }, [focusIndex, cols, rowH])
+  }, [focusIndex, cols, rowH, masonry, mLayout])
 
   // 筛选结果变短后，把越界的焦点收回来
   useEffect(() => {
@@ -393,11 +490,24 @@ export default function Gallery(): React.ReactElement {
       const x1 = Math.max(left, right)
       const y0 = Math.min(top, bottom) + el.scrollTop
       const y1 = Math.max(top, bottom) + el.scrollTop
+      const out: string[] = []
+      if (masonry && mLayout) {
+        // 瀑布流：逐卡命中测试
+        for (let i = 0; i < entries.length; i++) {
+          const p = mLayout.pos[i]
+          const l = p.x
+          const r = p.x + cardW
+          const t = p.y
+          const b = p.y + p.h
+          if (r < x0 || l > x1 || b < y0 || t > y1) continue
+          out.push(entries[i].id)
+        }
+        return out
+      }
       const c0 = Math.max(0, Math.floor((x0 - PAD) / (cardW + GAP)))
       const c1 = Math.min(cols - 1, Math.floor((x1 - PAD) / (cardW + GAP)))
       const r0 = Math.max(0, Math.floor((y0 - PAD) / rowH))
       const r1 = Math.min(rows - 1, Math.floor((y1 - PAD) / rowH))
-      const out: string[] = []
       for (let r = r0; r <= r1; r++) {
         for (let c = c0; c <= c1; c++) {
           const cardLeft = PAD + c * (cardW + GAP)
@@ -411,7 +521,7 @@ export default function Gallery(): React.ReactElement {
       }
       return out
     },
-    [entries, cols, cardW, rowH, rows]
+    [entries, cols, cardW, rowH, rows, masonry, mLayout]
   )
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>): void => {
@@ -534,6 +644,56 @@ export default function Gallery(): React.ReactElement {
 
   const hasAnyEntry = data.entries.length > 0
 
+  /** 卡片渲染（网格与瀑布流共用）：index 用于选中/焦点，thumbH 仅瀑布流传入 */
+  const renderCard = (entry: PromptEntry, index: number, thumbH?: number): React.ReactElement => (
+    <Card
+      key={entry.id}
+      entry={entry}
+      width={cardW}
+      thumbH={thumbH}
+      assets={assets}
+      tagInfo={tagInfo}
+      activeTagIds={tagIds}
+      selected={selectedIds.includes(entry.id)}
+      focused={focusIndex === index}
+      onSelect={(e) => {
+        setFocusIndex(index)
+        const additive = e.ctrlKey || e.metaKey
+        const range = e.shiftKey
+        if (range || additive) {
+          select(entry.id, { additive, range })
+        } else {
+          select(entry.id)
+          openDetail(entry.id)
+        }
+      }}
+      onOpenDetail={() => {
+        setFocusIndex(index)
+        select(entry.id)
+        openDetail(entry.id)
+      }}
+      onEdit={() => startEdit(entry.id)}
+      onCopy={() => {
+        if (!entry.positive && !entry.note) return
+        void copyText(copyVariants(entry)[0].text)
+          .then(() => toast('已复制提示词', 'ok'))
+          .catch(() => toast('复制失败，请手动选中文本', 'err'))
+      }}
+      onCopyVariant={(vid) => {
+        void copyText(variantText(entry, vid))
+          .then(() => toast('已复制', 'ok'))
+          .catch(() => toast('复制失败，请手动选中文本', 'err'))
+      }}
+      onRate={(v) =>
+        void patchEntries([entry.id], { rating: v }, { optimistic: true, quiet: true })
+      }
+      onToggleFavorite={() =>
+        void patchEntries([entry.id], { favorite: !entry.favorite }, { optimistic: true, quiet: true })
+      }
+      onTagClick={(id) => filterByTag(id)}
+    />
+  )
+
   return (
     <div
       className="gallery-wrap"
@@ -598,6 +758,18 @@ export default function Gallery(): React.ReactElement {
               </button>
             </Empty>
           )
+        ) : masonry && mLayout ? (
+          <div className="vgrid" style={{ height: mLayout.total }}>
+            {mVisible.map((index) => {
+              const entry = entries[index]
+              const p = mLayout.pos[index]
+              return (
+                <div key={entry.id} style={{ position: 'absolute', top: p.y, left: p.x }}>
+                  {renderCard(entry, index, p.imgH)}
+                </div>
+              )
+            })}
+          </div>
         ) : (
           <div className="vgrid" style={{ height: totalH }}>
             {Array.from({ length: endRow - startRow }, (_, ri) => {
@@ -612,52 +784,7 @@ export default function Gallery(): React.ReactElement {
                 >
                   {rowItems.map((entry, ci) => {
                     const index = from + ri * cols + ci
-                    return (
-                    <Card
-                      key={entry.id}
-                      entry={entry}
-                      width={cardW}
-                      assets={assets}
-                      tagInfo={tagInfo}
-                      activeTagIds={tagIds}
-                      selected={selectedIds.includes(entry.id)}
-                      focused={focusIndex === index}
-                      onSelect={(e) => {
-                        setFocusIndex(index)
-                        const additive = e.ctrlKey || e.metaKey
-                        const range = e.shiftKey
-                        if (range || additive) {
-                          select(entry.id, { additive, range })
-                        } else {
-                          select(entry.id)
-                          openDetail(entry.id)
-                        }
-                      }}
-                      onOpenDetail={() => {
-                        setFocusIndex(index)
-                        select(entry.id)
-                        openDetail(entry.id)
-                      }}
-                      onEdit={() => startEdit(entry.id)}
-                      onCopy={() => {
-                        if (!entry.positive) return
-                        void copyText(entry.positive)
-                          .then(() => toast('已复制提示词', 'ok'))
-                          .catch(() => toast('复制失败，请手动选中文本', 'err'))
-                      }}
-                      onRate={(v) =>
-                        void patchEntries([entry.id], { rating: v }, { optimistic: true, quiet: true })
-                      }
-                      onToggleFavorite={() =>
-                        void patchEntries(
-                          [entry.id],
-                          { favorite: !entry.favorite },
-                          { optimistic: true, quiet: true }
-                        )
-                      }
-                      onTagClick={(id) => filterByTag(id)}
-                    />
-                    )
+                    return renderCard(entry, index)
                   })}
                 </div>
               )

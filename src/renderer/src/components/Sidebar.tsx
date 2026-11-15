@@ -55,6 +55,7 @@ export default function Sidebar(): React.ReactElement {
 
   const setCollection = useStore((s) => s.setCollection)
   const toggleTag = useStore((s) => s.toggleTag)
+  const switchTag = useStore((s) => s.switchTag)
   const clearTags = useStore((s) => s.clearTags)
   const setTagMode = useStore((s) => s.setTagMode)
   const setRatingMin = useStore((s) => s.setRatingMin)
@@ -463,24 +464,26 @@ export default function Sidebar(): React.ReactElement {
             </div>
           )}
 
-          {tagIds.length > 1 && (
-            <div className="seg tiny">
-              <button
-                type="button"
-                className={'seg-btn' + (tagMode === 'or' ? ' on' : '')}
-                onClick={() => setTagMode('or')}
-              >
-                任一
-              </button>
-              <button
-                type="button"
-                className={'seg-btn' + (tagMode === 'and' ? ' on' : '')}
-                onClick={() => setTagMode('and')}
-              >
-                同时满足
-              </button>
-            </div>
-          )}
+          <div className={'seg tiny' + (tagIds.length > 1 ? '' : ' seg-off')}>
+            <button
+              type="button"
+              className={'seg-btn' + (tagMode === 'or' ? ' on' : '')}
+              disabled={tagIds.length < 2}
+              title={tagIds.length < 2 ? '选中多个标签后生效' : '命中任意一个所选标签'}
+              onClick={() => setTagMode('or')}
+            >
+              任一
+            </button>
+            <button
+              type="button"
+              className={'seg-btn' + (tagMode === 'and' ? ' on' : '')}
+              disabled={tagIds.length < 2}
+              title={tagIds.length < 2 ? '选中多个标签后生效' : '同时满足所有所选标签'}
+              onClick={() => setTagMode('and')}
+            >
+              同时满足
+            </button>
+          </div>
 
           {[...groupedTags.entries()]
             .filter(([gid]) => gid !== '' || (groupedTags.get('')?.length ?? 0) > 0)
@@ -508,7 +511,9 @@ export default function Sidebar(): React.ReactElement {
                         className={'tagchip' + (tagIds.includes(t.id) ? ' on' : '')}
                         onClick={(e) => {
                           e.stopPropagation()
-                          toggleTag(t.id)
+                          // 单击直接切换（2026-11-15 用户定）；Ctrl/⌘+点 才往多选里加
+                          if (e.ctrlKey || e.metaKey) toggleTag(t.id)
+                          else switchTag(t.id)
                         }}
                         title={`点击筛选 · 右键重命名/移动/删除`}
                         onContextMenu={async (e) => {

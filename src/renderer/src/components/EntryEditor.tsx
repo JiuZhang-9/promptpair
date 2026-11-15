@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset, EntryDraft, ModelKind } from '../../../shared/types'
 import { MODEL_KIND_LABEL } from '../../../shared/types'
 import { assetMap, groupMap, tagMap, thumbUrl, useStore } from '../store'
+import { copyVariants } from '../copyVariants'
 import { Field, Icon, Modal, Stars, copyText, formatBytes } from './ui'
 
 function cleanError(e: unknown): string {
@@ -571,6 +572,31 @@ export default function EntryEditor(): React.ReactElement | null {
                   </button>
                 )}
               </div>
+              {(() => {
+                const extra = draft.params?.extra ?? {}
+                if (!extra['mjCodeparam'] && !extra['mjCodes']) return null
+                const items = copyVariants(draft).filter((v) => v.id !== 'prompt')
+                return (
+                  <div className="mj-copy-row">
+                    {items.map((v) => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        className="mj-chip"
+                        disabled={v.disabled}
+                        title={v.disabled ? '没有对应内容' : v.text.slice(0, 120)}
+                        onClick={() =>
+                          void copyText(v.text)
+                            .then(() => toast('已复制 ' + v.label, 'ok'))
+                            .catch(() => toast('复制失败，请手动选中文本', 'err'))
+                        }
+                      >
+                        <Icon name="copy" size={11} /> {v.label}
+                      </button>
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
           </Field>
 

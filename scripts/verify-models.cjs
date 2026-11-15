@@ -1,7 +1,7 @@
 /**
  * 模型词表端到端验收（0.8.0）：
  *   1. 建库即带默认词表；重复名字被拒绝
- *   2. 建两条记录（即梦3.0 / 即梦 3.0），合并来源模型并断言历史值同步
+ *   2. 建两条记录（Seedream 3.0 / Seedream），合并来源模型并断言历史值同步
  *   3. 重命名模型并同步历史；删除模型不影响历史字符串
  *   4. 未入词表的模型出现在侧栏筛选（重载后验证 DOM）
  *   5. 编辑器模型选择器：输入过滤、点选、新建入表
@@ -87,25 +87,25 @@ app.whenReady().then(async () => {
     const seedCount = st.data.models?.length ?? 0
     assert(seedCount >= 10, '新库自带默认模型词表', seedCount)
     assert(
-      st.data.models.some((m) => m.name === '即梦 3.0' && m.kind === 'video'),
-      '默认词表含「即梦 3.0」（视频）'
+      st.data.models.some((m) => m.name === 'Seedream' && m.kind === 'video'),
+      '默认词表含「Seedream」（视频）'
     )
 
     console.log('\n→ 新建与查重…')
-    const main = st.data.models.find((m) => m.name === '即梦 3.0')
-    assert(!!main?.id, '默认词表里已有「即梦 3.0」', main)
-    const dup = await js(`window.pp.createModel('即梦3.0', 'video')`)
-    assert(!!dup.id && dup.name === '即梦3.0', '「即梦3.0」可作为近似写法存在（待治理）', dup)
+    const main = st.data.models.find((m) => m.name === 'Seedream')
+    assert(!!main?.id, '默认词表里已有「Seedream」', main)
+    const dup = await js(`window.pp.createModel('Seedream 3.0', 'video')`)
+    assert(!!dup.id && dup.name === 'Seedream 3.0', '「Seedream 3.0」可作为近似写法存在（待治理）', dup)
     const dupErr = await js(
-      `window.pp.createModel('即梦 3.0', 'video').then(() => '').catch(e => String(e))`
+      `window.pp.createModel('Seedream', 'video').then(() => '').catch(e => String(e))`
     )
     assert(/已存在|已在词表/.test(dupErr), '同名（去空格后相同）被拒绝', dupErr)
 
     console.log('\n→ 英文名称与版本判重…')
     const stable = await js(`window.pp.createModel('stable-test', 'image')`)
     assert(stable.name === 'stable-test', '英文 s 开头名称保留首字符', stable.name)
-    const v4 = await js(`window.pp.createModel('即梦 4.0', 'video')`)
-    assert(v4.name === '即梦 4.0', '新建即梦 4.0')
+    const v4 = await js(`window.pp.createModel('Seedream 4.0', 'video')`)
+    assert(v4.name === 'Seedream 4.0', '新建Seedream 4.0')
     // createModel 走的是主进程 IPC，重载后 store 才能拿到新词表
     win.webContents.reload()
     await sleep(2400)
@@ -115,12 +115,13 @@ app.whenReady().then(async () => {
     const sugNames = await js(`
       Array.from(document.querySelectorAll('.tm-sug-names')).map(x => x.textContent.trim())
     `)
-    const badSuggestion = sugNames.some((t) => t.includes('即梦 3.0') && t.includes('即梦 4.0'))
-    assert(!badSuggestion, '即梦 3.0 / 4.0 不再提示重复', sugNames.slice(0, 6))
+    // 版本兄弟（3.0 / 4.0）不提示重复；无版本名 ↔ 带版本名仍会提示治理（新词表规范下的合理行为）
+    const badSuggestion = sugNames.some((t) => t.includes('Seedream 3.0') && t.includes('Seedream 4.0'))
+    assert(!badSuggestion, 'Seedream 3.0 / 4.0 不再提示重复', sugNames.slice(0, 6))
 
     const dbl = await js(`
       (() => {
-        const el = [...document.querySelectorAll('.tm-name')].find(x => x.textContent.trim() === '即梦 4.0')
+        const el = [...document.querySelectorAll('.tm-name')].find(x => x.textContent.trim() === 'Seedream 4.0')
         if (!el) return false
         el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
         return true
@@ -128,31 +129,31 @@ app.whenReady().then(async () => {
     `)
     await sleep(200)
     const renameValue = await js(`document.querySelector('.tm-rename')?.value || ''`)
-    assert(dbl && renameValue === '即梦 4.0', '双击模型名进入重命名', renameValue)
+    assert(dbl && renameValue === 'Seedream 4.0', '双击模型名进入重命名', renameValue)
     await js(`document.querySelector('.tm-rename')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
     await sleep(200)
     await js(`document.querySelector('.right-dock .detail-head .icon-btn')?.click()`)
     await sleep(300)
 
     console.log('\n→ 条目与合并…')
-    const entryA = await js(`window.pp.saveEntry(${JSON.stringify(draft('记录A', '即梦3.0'))})`)
-    const entryB = await js(`window.pp.saveEntry(${JSON.stringify(draft('记录B', '即梦 3.0'))})`)
+    const entryA = await js(`window.pp.saveEntry(${JSON.stringify(draft('记录A', 'Seedream 3.0'))})`)
+    const entryB = await js(`window.pp.saveEntry(${JSON.stringify(draft('记录B', 'Seedream'))})`)
     assert(!!entryA.id && !!entryB.id, '两条记录已创建')
     const merged = await js(`window.pp.mergeModels(${JSON.stringify([dup.id])}, '${main.id}', true)`)
     assert(merged.merged === 1 && merged.affectedEntries === 1, '合并 1 个模型并同步 1 条记录', merged)
     st = await js('window.pp.getState()')
     const a1 = st.data.entries.find((e) => e.title === '记录A')
-    assert(a1.params.model === '即梦 3.0', '记录A 的历史值已同步为目标名', a1.params.model)
-    assert(!st.data.models.some((m) => m.name === '即梦3.0'), '来源模型已从词表移除')
+    assert(a1.params.model === 'Seedream', '记录A 的历史值已同步为目标名', a1.params.model)
+    assert(!st.data.models.some((m) => m.name === 'Seedream 3.0'), '来源模型已从词表移除')
 
     console.log('\n→ 重命名并同步历史…')
-    const ren = await js(`window.pp.updateModel('${main.id}', { name: '即梦 3.1' }, true)`)
+    const ren = await js(`window.pp.updateModel('${main.id}', { name: 'Seedream 3.1' }, true)`)
     assert(ren.affectedEntries === 2, '两条历史记录同步改名', ren)
     st = await js('window.pp.getState()')
     const renamed = st.data.models.find((m) => m.id === main.id)
-    assert(renamed.name === '即梦 3.1', '词表名称已更新', renamed.name)
+    assert(renamed.name === 'Seedream 3.1', '词表名称已更新', renamed.name)
     assert(
-      st.data.entries.filter((e) => e.params.model === '即梦 3.1').length === 2,
+      st.data.entries.filter((e) => e.params.model === 'Seedream 3.1').length === 2,
       '两条记录都是新名字'
     )
 
@@ -172,11 +173,11 @@ app.whenReady().then(async () => {
     const chips = await js(`
       Array.from(document.querySelectorAll('.tagchip')).map(b => b.textContent.trim())
     `)
-    assert(chips.some((t) => t.includes('即梦 3.1')), '侧栏出现词表内模型', chips)
+    assert(chips.some((t) => t.includes('Seedream 3.1')), '侧栏出现词表内模型', chips)
     assert(chips.some((t) => t.includes('MJ v6')), '侧栏出现未入词表的历史值', chips)
     const clicked = await js(`
       (() => {
-        const b = Array.from(document.querySelectorAll('.tagchip')).find(x => x.textContent.includes('即梦 3.1'))
+        const b = Array.from(document.querySelectorAll('.tagchip')).find(x => x.textContent.includes('Seedream 3.1'))
         if (!b) return false
         b.click()
         return true
@@ -203,17 +204,17 @@ app.whenReady().then(async () => {
       (() => {
         const input = document.querySelector('.modelpicker input')
         const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
-        setter.call(input, '即')
+        setter.call(input, 'Se')
         input.dispatchEvent(new Event('input', { bubbles: true }))
       })()
     `)
     await sleep(300)
     const menuItems = await js(`document.querySelectorAll('.modelpicker .tp-menu .tp-item').length`)
-    assert(menuItems > 0, '输入「即」后下拉出现候选', menuItems)
+    assert(menuItems > 0, '输入「Se」后下拉出现候选', menuItems)
     await js(`document.querySelector('.modelpicker .tp-menu .tp-item')?.click()`)
     await sleep(200)
     const picked = await js(`document.querySelector('.modelpicker input').value`)
-    assert(picked === '即梦 3.1', '点选候选后填入模型名', picked)
+    assert(picked === 'Seedream 3.1', '点选候选后填入模型名', picked)
 
     await js(`
       (() => {
@@ -242,11 +243,11 @@ app.whenReady().then(async () => {
     st = await js('window.pp.getState()')
     assert(!st.data.models.some((m) => m.name === '测试模型X'), '自定义模型已移除')
     assert(
-      st.data.models.some((m) => m.name === '即梦 3.0'),
-      '默认词表恢复（含即梦 3.0）'
+      st.data.models.some((m) => m.name === 'Seedream'),
+      '默认词表恢复（含Seedream）'
     )
     assert(
-      st.data.entries.some((e) => e.params.model === '即梦 3.1'),
+      st.data.entries.some((e) => e.params.model === 'Seedream 3.1'),
       '条目上的历史字符串保持原样'
     )
   } catch (e) {

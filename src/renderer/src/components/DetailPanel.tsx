@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { assetMap, collMap, groupMap, mediaUrl, tagMap, thumbUrl, useStore } from '../store'
+import { copyVariants } from '../copyVariants'
 import { Icon, Stars, copyText, formatBytes, formatDate, formatDuration } from './ui'
 
 export default function DetailPanel(): React.ReactElement | null {
@@ -72,6 +73,12 @@ export default function DetailPanel(): React.ReactElement | null {
   if (entry.params?.sampler) paramRows.push(['采样器', entry.params.sampler])
   if (entry.params?.reference) paramRows.push(['参考图', entry.params.reference])
   for (const [k, v] of Object.entries(entry.params?.extra ?? {})) paramRows.push([k, String(v)])
+
+  // MJ 条目：备注(vibe)视为提示词的一部分，主复制按钮带 vibe；附加码/参数复制行
+  const mjVariants = copyVariants(entry)
+  const hasMjData = !!(
+    entry.params?.extra?.['mjCodes'] || entry.params?.extra?.['mjCodeparam']
+  )
 
   const allText = (): string => {
     const parts: string[] = []
@@ -236,7 +243,7 @@ export default function DetailPanel(): React.ReactElement | null {
                 <button
                   type="button"
                   className={'copy-btn' + (copied === 'pos' ? ' done' : '')}
-                  onClick={() => void copy(entry.positive, 'pos')}
+                  onClick={() => void copy(hasMjData ? mjVariants[0].text : entry.positive, 'pos')}
                   disabled={!entry.positive}
                 >
                   <Icon name={copied === 'pos' ? 'check' : 'copy'} size={12} />
@@ -255,10 +262,29 @@ export default function DetailPanel(): React.ReactElement | null {
             </div>
             <div
               className={'pbox' + (entry.positive ? '' : ' placeholder')}
-              onDoubleClick={() => void copy(entry.positive, 'pos')}
+              onDoubleClick={() => void copy(hasMjData ? mjVariants[0].text : entry.positive, 'pos')}
             >
               {entry.positive || '还没有提示词。双击编辑，或点右上角编辑按钮补充。'}
             </div>
+            {hasMjData && (
+              <div className="mj-copy-row">
+                {mjVariants
+                  .filter((v) => v.id !== 'prompt')
+                  .map((v) => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      className={'mj-chip' + (copied === 'mj:' + v.id ? ' done' : '')}
+                      disabled={v.disabled}
+                      title={v.disabled ? '这条记录没有对应内容' : v.text.slice(0, 120)}
+                      onClick={() => void copy(v.text, 'mj:' + v.id)}
+                    >
+                      <Icon name={copied === 'mj:' + v.id ? 'check' : 'copy'} size={11} />
+                      {copied === 'mj:' + v.id ? '已复制' : v.label}
+                    </button>
+                  ))}
+              </div>
+            )}
           </div>
 
           {entry.negative && (

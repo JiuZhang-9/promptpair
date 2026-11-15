@@ -36,6 +36,7 @@ const PATHS: Record<string, string> = {
   help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-2.9-12a3 3 0 1 1 5.4 1.7c-.8.8-2.5 1.3-2.5 3.3M12 17h.01',
   panelLeft: 'M4 4h16v16H4zM9 4v16',
   panelRight: 'M4 4h16v16H4zM15 4v16',
+  masonry: 'M4 4h7v10H4zM13 4h7v5h-7zM4 16h7v4H4zM13 11h7v9h-7z',
   eye: 'M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6Zm10 2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
   filter: 'M3 5h18l-7 8v6l-4 2v-8L3 5Z',
   swap: 'M7 8h10l-3-3m3 11H7l3 3',

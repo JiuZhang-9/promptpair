@@ -56,6 +56,8 @@ export default function TopBar(): React.ReactElement {
   const setSort = useStore((s) => s.setSort)
   const thumbSize = useStore((s) => s.thumbSize)
   const setThumbSize = useStore((s) => s.setThumbSize)
+  const galleryLayout = useStore((s) => s.galleryLayout)
+  const setGalleryLayout = useStore((s) => s.setGalleryLayout)
   const data = useStore((s) => s.data)
   const config = useStore((s) => s.config)
   const version = useStore((s) => s.version)
@@ -588,6 +590,27 @@ export default function TopBar(): React.ReactElement {
             {count} 条
             {tagIds.length > 0 && <span className="dot-sep" />}
             {tagIds.length > 0 && `${tagIds.length} 个标签`}
+          </div>
+
+          <div className="layout-ctl" title="画廊布局：对齐网格 / 瀑布流">
+            <button
+              type="button"
+              className={'layout-btn' + (galleryLayout === 'grid' ? ' on' : '')}
+              aria-pressed={galleryLayout === 'grid'}
+              title="对齐网格"
+              onClick={() => setGalleryLayout('grid')}
+            >
+              <Icon name="grid" size={13} />
+            </button>
+            <button
+              type="button"
+              className={'layout-btn' + (galleryLayout === 'masonry' ? ' on' : '')}
+              aria-pressed={galleryLayout === 'masonry'}
+              title="瀑布流（按图片原始比例）"
+              onClick={() => setGalleryLayout('masonry')}
+            >
+              <Icon name="masonry" size={13} />
+            </button>
           </div>
 
           <div className="size-ctl" title="缩略图大小">

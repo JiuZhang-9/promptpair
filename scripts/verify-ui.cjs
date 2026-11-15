@@ -193,7 +193,7 @@ app.whenReady().then(async () => {
     clipboard.writeText('sentinel')
     const cardCopy = await js(win, `
       (() => {
-        const b = document.querySelector('.card .mini-btn[title="复制提示词"]')
+        const b = document.querySelector('.card [data-copy="prompt"]')
         if (b) b.click()
         return !!b
       })()

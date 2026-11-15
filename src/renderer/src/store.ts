@@ -64,6 +64,7 @@ export interface StoreState {
   /* 展示 */
   sort: SortKey
   thumbSize: number
+  galleryLayout: 'grid' | 'masonry'
   panel: PanelKind
   batchTagModal: BatchTagModal
   shortcutsOpen: boolean
@@ -93,6 +94,7 @@ export interface StoreState {
   setQ: (v: string) => void
   setCollection: (id: string | null) => void
   toggleTag: (id: string) => void
+  switchTag: (id: string) => void
   filterByTag: (id: string) => void
   clearTags: () => void
   setTagMode: (m: 'or' | 'and') => void
@@ -108,6 +110,7 @@ export interface StoreState {
   deleteView: (id: string) => Promise<void>
   setSort: (s: SortKey) => void
   setThumbSize: (n: number) => void
+  setGalleryLayout: (l: 'grid' | 'masonry') => void
   resetFilters: () => void
   setPanel: (p: PanelKind) => void
   setBatchTagModal: (m: BatchTagModal) => void
@@ -226,6 +229,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   sort: 'newest',
   thumbSize: 220,
+  galleryLayout: 'grid',
   panel: 'none',
   batchTagModal: 'none',
   shortcutsOpen: false,
@@ -256,6 +260,7 @@ export const useStore = create<StoreState>((set, get) => ({
         version: snap.version,
         capturePort: snap.capturePort,
         thumbSize: snap.config.thumbSize || 200,
+        galleryLayout: snap.config.galleryLayout === 'masonry' ? 'masonry' : 'grid',
         sidebarCollapsed: snap.config.sidebarCollapsed ?? false,
         rightPanelCollapsed: snap.config.rightPanelCollapsed ?? false
       })
@@ -338,6 +343,11 @@ export const useStore = create<StoreState>((set, get) => ({
   filterByTag: (id) =>
     set((s) => ({
       // 卡片标签是“只看这个标签”；再点一次取消。多标签组合仍在左栏操作。
+      tagIds: s.tagIds.length === 1 && s.tagIds[0] === id ? [] : [id]
+    })),
+  /** 左栏标签：单击直接切换到只看它（2026-11-15 用户定），Ctrl+点 才往多选里加 */
+  switchTag: (id) =>
+    set((s) => ({
       tagIds: s.tagIds.length === 1 && s.tagIds[0] === id ? [] : [id]
     })),
   clearTags: () => set({ tagIds: [] }),
@@ -462,6 +472,10 @@ export const useStore = create<StoreState>((set, get) => ({
       thumbPersistTimer = null
       void window.pp.patchConfig({ thumbSize: next })
     }, 220)
+  },
+  setGalleryLayout: (l) => {
+    set({ galleryLayout: l })
+    void window.pp.patchConfig({ galleryLayout: l })
   },
   resetFilters: () =>
     set({

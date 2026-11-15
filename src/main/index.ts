@@ -6,29 +6,45 @@ import electron, { app, BrowserWindow, nativeTheme, protocol, shell } from 'elec
 import { Library } from './library'
 import { Config, defaultLibraryPath } from './config'
 import { registerIpc, type AppCtx } from './ipc'
+import { isCliRequest, runCli } from './cli'
 import { initUpdater, onUpdateStatus } from './updater'
 import { startCaptureServer, stopCaptureServer } from './capture'
 import { applyTitleBarOverlay, applyUiScale, clampUiScale, TITLEBAR_HEIGHT } from './appearance'
 
-// ── 单实例：第二次启动直接把已有窗口拉到前台，避免两个进程抢同一个库文件
-const gotLock = app.requestSingleInstanceLock()
-if (!gotLock) {
-  app.quit()
-}
+// ── CLI 模式：`--cli` 走无头命令行（复用库核心逻辑），不建窗口不装协议
+const CLI_MODE = isCliRequest()
+// 只有写操作（add 且非 dry-run）需要独占库；list / dry-run 只读，可与 GUI 并存
+const CLI_WRITE = CLI_MODE && process.argv.includes('add') && !process.argv.includes('--dry-run')
 
-protocol.registerSchemesAsPrivileged([
-  {
-    scheme: 'ppmedia',
-    privileges: {
-      standard: true,
-      secure: true,
-      supportFetchAPI: true,
-      stream: true,
-      bypassCSP: true,
-      corsEnabled: true
-    }
+// ── 单实例：第二次启动直接把已有窗口拉到前台，避免两个进程抢同一个库文件。
+// 只读 CLI 不参与抢锁（避免把用户正开着的窗口拉到前台）
+const gotLock = CLI_MODE && !CLI_WRITE ? true : app.requestSingleInstanceLock()
+if (CLI_MODE) {
+  // 写操作抢锁失败 = 另一个实例正开着库，此时写库会被旧内存覆盖，拒绝执行
+  if (CLI_WRITE && !gotLock) {
+    console.error('[cli] 检测到另一个 PromptPair 实例正在运行，请先退出应用再执行 CLI 写操作')
+    app.exit(2)
+  } else {
+    void runCli(process.argv.slice(2)).then((code) => app.exit(code))
   }
-])
+} else {
+  if (!gotLock) {
+    app.quit()
+  }
+
+  protocol.registerSchemesAsPrivileged([
+    {
+      scheme: 'ppmedia',
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        stream: true,
+        bypassCSP: true,
+        corsEnabled: true
+      }
+    }
+  ])
 
 const MIME: Record<string, string> = {
   '.png': 'image/png',
@@ -276,14 +292,15 @@ app.whenReady().then(async () => {
   })
 })
 
-app.on('window-all-closed', () => {
-  try {
-    ctx?.lib?.dispose()
-  } catch {
-    /* ignore */
-  }
-  if (process.platform !== 'darwin') app.quit()
-})
+  app.on('window-all-closed', () => {
+    try {
+      ctx?.lib?.dispose()
+    } catch {
+      /* ignore */
+    }
+    if (process.platform !== 'darwin') app.quit()
+  })
+} // end: GUI 模式分支（CLI 模式在 runCli 里自行退出）
 
 // 供 ipc.ts 使用的路径工具（避免循环依赖）
 export function fileUrl(p: string): string {
