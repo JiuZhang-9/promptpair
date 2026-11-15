@@ -6,7 +6,7 @@ import electron, { app, BrowserWindow, nativeTheme, protocol, shell } from 'elec
 import { Library } from './library'
 import { Config, defaultLibraryPath } from './config'
 import { registerIpc, type AppCtx } from './ipc'
-import { isCliRequest, runCli } from './cli'
+import { isCliRequest, runCli, handleForwardedAdd, queueForwarded, drainForwarded } from './cli'
 import { initUpdater, onUpdateStatus } from './updater'
 import { startCaptureServer, stopCaptureServer } from './capture'
 import { applyTitleBarOverlay, applyUiScale, clampUiScale, TITLEBAR_HEIGHT } from './appearance'
@@ -20,12 +20,20 @@ const CLI_WRITE = CLI_MODE && process.argv.includes('add') && !process.argv.incl
 // 只读 CLI 不参与抢锁（避免把用户正开着的窗口拉到前台）
 const gotLock = CLI_MODE && !CLI_WRITE ? true : app.requestSingleInstanceLock()
 if (CLI_MODE) {
-  // 写操作抢锁失败 = 另一个实例正开着库，此时写库会被旧内存覆盖，拒绝执行
+  // CLI 主实例（正在导入中）也可能收到后续转发：先排队，当前命令结束后顺次执行
+  app.on('second-instance', (_e, argv) => {
+    if (isCliRequest(argv)) queueForwarded(argv.slice(1))
+  })
   if (CLI_WRITE && !gotLock) {
-    console.error('[cli] 检测到另一个 PromptPair 实例正在运行，请先退出应用再执行 CLI 写操作')
-    app.exit(2)
+    // 抢锁失败 = 运行中的 PromptPair 持有库。Electron 已把本次 argv 通过
+    // second-instance 转交给主实例，由它在自己进程内完成导入并刷新界面
+    console.error('[cli] 检测到 PromptPair 正在运行，批次已转发给运行中的软件（导入完成后界面自动刷新）')
+    setTimeout(() => app.exit(0), 400)
   } else {
-    void runCli(process.argv.slice(2)).then((code) => app.exit(code))
+    void runCli(process.argv.slice(2)).then(async (code) => {
+      const failed = await drainForwarded()
+      app.exit(failed > 0 ? 1 : code)
+    })
   }
 } else {
   if (!gotLock) {
@@ -280,7 +288,12 @@ app.whenReady().then(async () => {
   app.on('before-quit', flush)
   process.on('exit', flush)
 
-  app.on('second-instance', () => {
+  app.on('second-instance', (_e, argv) => {
+    // 运行中的软件接管 CLI 写命令：自己进程内导入，完成后界面自动刷新
+    if (isCliRequest(argv)) {
+      void handleForwardedAdd(argv, { lib, win })
+      return
+    }
     if (win) {
       if (win.isMinimized()) win.restore()
       win.focus()
