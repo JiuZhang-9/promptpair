@@ -4,11 +4,11 @@ import zlib from 'node:zlib'
 import { pipeline } from 'node:stream/promises'
 
 /**
- * 分享包解压。
+ * 分享包的读写。
  *
- * 不用 fflate 的流式 Unzip：导出端写的是带数据描述符的条目（本地头里尺寸为 0），
- * 流式解包只能靠扫描下一个 PK 签名来切分条目，媒体文件里恰好出现该字节序列就会
- * 错位、读出乱码文件名（ENOENT: mkdir）。这里改为读中央目录、按真实偏移取数据。
+ * 写：自己写标准 zip（尺寸/CRC 回填到本地头，不用数据描述符）。fflate 的流式写法
+ * 只能把尺寸留空，任何按签名扫描的解包器都可能被媒体内容里的 PK 字节带偏。
+ * 读：按中央目录取真实偏移和长度，不靠签名切分。
  */
 
 export interface ZipEntryMeta {
@@ -78,8 +78,7 @@ export function readZipEntries(fd: number, size: number): ZipEntryMeta[] {
   return out
 }
 
-/** 过滤危险/非法路径；返回 null 表示跳过该条目 */
-function safeEntryRel(name: string): string | null {
+/** 过滤危险/非法路径；返回 null 表示跳过该条目 */function safeEntryRel(name: string): string | null {
   const rel = name.replace(/\\/g, '/').replace(/^\/+/, '')
   if (!rel || rel.includes('..') || rel.endsWith('/')) return null
   const segs = rel.split('/').map((s) => s.trim())
@@ -121,5 +120,171 @@ export async function extractZip(zipPath: string, destDir: string): Promise<void
     }
   } finally {
     fs.closeSync(fd)
+  }
+}
+
+/* ────────────────────────── 写包 ────────────────────────── */
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256)
+  for (let n = 0; n < 256; n++) {
+    let c = n
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    t[n] = c >>> 0
+  }
+  return t
+})()
+
+function crc32(buf: Buffer, seed = 0): number {
+  let c = (seed ^ 0xffffffff) >>> 0
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8)
+  return (c ^ 0xffffffff) >>> 0
+}
+
+/** 本地时间转 DOS 时间/日期 */
+function dosStamp(d: Date): { time: number; date: number } {
+  const time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)
+  const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()
+  return { time, date }
+}
+
+const MAX32 = 0xffffffff
+
+interface WrittenEntry {
+  name: Buffer
+  flags: number
+  crc: number
+  size: number
+  localOffset: number
+}
+
+/**
+ * 最小可用的 zip 写入器：只做 stored（不压缩），尺寸与 CRC 回填进本地头。
+ * 没有数据描述符，所以任何解包器（含旧版 PromptPair）都能正确读。
+ */
+export class ZipWriter {
+  private fd: number
+  private offset = 0
+  private entries: WrittenEntry[] = []
+  private closed = false
+  private readonly stamp: { time: number; date: number }
+
+  constructor(outPath: string) {
+    fs.mkdirSync(path.dirname(outPath), { recursive: true })
+    this.fd = fs.openSync(outPath, 'w')
+    this.stamp = dosStamp(new Date())
+  }
+
+  private write(buf: Buffer): void {
+    let done = 0
+    while (done < buf.length) {
+      const n = fs.writeSync(this.fd, buf, done, buf.length - done)
+      if (n <= 0) throw new Error('写入分享包失败')
+      done += n
+    }
+    this.offset += buf.length
+    if (this.offset > MAX32) throw new Error('分享包超过 4GB，暂不支持')
+  }
+
+  private beginEntry(name: string): { nameBuf: Buffer; flags: number; localOffset: number } {
+    if (this.entries.length >= 0xffff) throw new Error('分享包文件数超过 65535，暂不支持')
+    const nameBuf = Buffer.from(name, 'utf8')
+    const flags = /^[\x20-\x7e]*$/.test(name) ? 0 : 0x800
+    const localOffset = this.offset
+    const hdr = Buffer.alloc(30)
+    hdr.writeUInt32LE(0x04034b50, 0)
+    hdr.writeUInt16LE(20, 4)
+    hdr.writeUInt16LE(flags, 6)
+    hdr.writeUInt16LE(0, 8) // stored
+    hdr.writeUInt16LE(this.stamp.time, 10)
+    hdr.writeUInt16LE(this.stamp.date, 12)
+    hdr.writeUInt16LE(nameBuf.length, 26)
+    this.write(Buffer.concat([hdr, nameBuf]))
+    return { nameBuf, flags, localOffset }
+  }
+
+  /** 回填本地头的 crc/csize/usize */
+  private endEntry(entry: { nameBuf: Buffer; flags: number; localOffset: number }, crc: number, size: number): void {
+    if (size > MAX32) throw new Error('单个文件超过 4GB，暂不支持')
+    const patch = Buffer.alloc(12)
+    patch.writeUInt32LE(crc, 0)
+    patch.writeUInt32LE(size, 4)
+    patch.writeUInt32LE(size, 8)
+    fs.writeSync(this.fd, patch, 0, patch.length, entry.localOffset + 14)
+    this.entries.push({
+      name: entry.nameBuf,
+      flags: entry.flags,
+      crc,
+      size,
+      localOffset: entry.localOffset
+    })
+  }
+
+  addBuffer(name: string, data: Buffer): void {
+    const entry = this.beginEntry(name)
+    this.write(data)
+    this.endEntry(entry, crc32(data), data.length)
+  }
+
+  addFile(name: string, absPath: string): void {
+    const entry = this.beginEntry(name)
+    const src = fs.openSync(absPath, 'r')
+    const buf = Buffer.allocUnsafe(1 << 20)
+    let crc = 0
+    let size = 0
+    try {
+      let n: number
+      while ((n = fs.readSync(src, buf, 0, buf.length, null)) > 0) {
+        const chunk = buf.subarray(0, n)
+        crc = crc32(chunk, crc)
+        size += n
+        this.write(chunk)
+      }
+    } finally {
+      fs.closeSync(src)
+    }
+    this.endEntry(entry, crc, size)
+  }
+
+  finish(): void {
+    if (this.closed) return
+    const cdOffset = this.offset
+    for (const e of this.entries) {
+      const hdr = Buffer.alloc(46)
+      hdr.writeUInt32LE(0x02014b50, 0)
+      hdr.writeUInt16LE(20, 4)
+      hdr.writeUInt16LE(20, 6)
+      hdr.writeUInt16LE(e.flags, 8)
+      hdr.writeUInt16LE(0, 10) // stored
+      hdr.writeUInt16LE(this.stamp.time, 12)
+      hdr.writeUInt16LE(this.stamp.date, 14)
+      hdr.writeUInt32LE(e.crc, 16)
+      hdr.writeUInt32LE(e.size, 20)
+      hdr.writeUInt32LE(e.size, 24)
+      hdr.writeUInt16LE(e.name.length, 28)
+      hdr.writeUInt32LE(e.localOffset, 42)
+      this.write(Buffer.concat([hdr, e.name]))
+    }
+    const cdSize = this.offset - cdOffset
+    const eocd = Buffer.alloc(22)
+    eocd.writeUInt32LE(0x06054b50, 0)
+    eocd.writeUInt16LE(this.entries.length, 8)
+    eocd.writeUInt16LE(this.entries.length, 10)
+    eocd.writeUInt32LE(cdSize, 12)
+    eocd.writeUInt32LE(cdOffset, 16)
+    this.write(eocd)
+    fs.closeSync(this.fd)
+    this.closed = true
+  }
+
+  /** 出错时关掉句柄（是否删文件由调用方决定） */
+  abort(): void {
+    if (this.closed) return
+    try {
+      fs.closeSync(this.fd)
+    } catch {
+      /* ignore */
+    }
+    this.closed = true
   }
 }

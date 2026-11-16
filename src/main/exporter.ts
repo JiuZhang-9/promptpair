@@ -1,11 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-import { Zip, ZipPassThrough } from 'fflate'
 import type { ExportOptions, LibraryData, PromptEntry } from '../shared/types'
 import { Library, newId, nowIso, safeName } from './library'
 import { addFileToLibrary } from './media'
-import { extractZip } from './zip'
+import { ZipWriter, extractZip } from './zip'
 import { buildPreviewHtml, type PreviewAsset, type PreviewItem, type PreviewPack } from './preview'
 
 export const PACK_MAGIC = 'promptpair.pack'
@@ -359,39 +358,15 @@ export async function exportPack(
   }
 
   fs.mkdirSync(path.dirname(opts.outPath), { recursive: true })
-  const fd = fs.openSync(opts.outPath, 'w')
-  let writeError: Error | null = null
+  const zip = new ZipWriter(opts.outPath)
 
   try {
-    const zip = new Zip((err, chunk) => {
-      if (err) {
-        writeError = err
-        return
-      }
-      if (chunk && chunk.length) fs.writeSync(fd, chunk)
-    })
-
-    const put = (name: string, data: string | Uint8Array): void => {
-      const entry = new ZipPassThrough(name)
-      zip.add(entry)
-      const buf = typeof data === 'string' ? new TextEncoder().encode(data) : data
-      entry.push(buf, true)
+    const put = (name: string, data: string | Buffer): void => {
+      zip.addBuffer(name, typeof data === 'string' ? Buffer.from(data, 'utf8') : data)
     }
 
     const putFile = (name: string, absPath: string): void => {
-      const entry = new ZipPassThrough(name)
-      zip.add(entry)
-      const src = fs.openSync(absPath, 'r')
-      const buf = Buffer.allocUnsafe(1 << 16)
-      try {
-        let n: number
-        while ((n = fs.readSync(src, buf, 0, buf.length, null)) > 0) {
-          entry.push(new Uint8Array(buf.subarray(0, n)), false)
-        }
-      } finally {
-        fs.closeSync(src)
-      }
-      entry.push(new Uint8Array(0), true)
+      zip.addFile(name, absPath)
     }
 
     put('manifest.json', JSON.stringify(manifest, null, 2))
@@ -403,7 +378,6 @@ export async function exportPack(
       const total = assets.length * 2
       let done = 0
       for (const a of assets) {
-        if (writeError) break
         onProgress?.({ stage: 'write', done, total, current: a.relPath })
         const abs = lib.abs(a.relPath)
         if (fs.existsSync(abs)) putFile(a.relPath, abs)
@@ -416,10 +390,15 @@ export async function exportPack(
       }
     }
 
-    zip.end()
-    if (writeError) throw writeError
-  } finally {
-    fs.closeSync(fd)
+    zip.finish()
+  } catch (e) {
+    zip.abort()
+    try {
+      fs.rmSync(opts.outPath, { force: true })
+    } catch {
+      /* ignore */
+    }
+    throw e
   }
 
   const bytes = fs.statSync(opts.outPath).size
