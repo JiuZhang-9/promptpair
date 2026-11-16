@@ -1,10 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-import { Zip, ZipPassThrough, Unzip, UnzipInflate, UnzipPassThrough } from 'fflate'
+import { Zip, ZipPassThrough } from 'fflate'
 import type { ExportOptions, LibraryData, PromptEntry } from '../shared/types'
 import { Library, newId, nowIso, safeName } from './library'
 import { addFileToLibrary } from './media'
+import { extractZip } from './zip'
 import { buildPreviewHtml, type PreviewAsset, type PreviewItem, type PreviewPack } from './preview'
 
 export const PACK_MAGIC = 'promptpair.pack'
@@ -465,62 +466,6 @@ function readmeText(name: string, version: string, entries: number, assets: numb
 }
 
 /* ────────────────────────── 解包 ────────────────────────── */
-
-export function extractZip(zipPath: string, destDir: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    fs.mkdirSync(destDir, { recursive: true })
-    const unzip = new Unzip()
-    unzip.register(UnzipInflate)
-    unzip.register(UnzipPassThrough)
-
-    let pending = 0
-    let ended = false
-    let settled = false
-
-    const maybeDone = (): void => {
-      if (ended && pending === 0 && !settled) {
-        settled = true
-        resolve()
-      }
-    }
-
-    unzip.onfile = (file): void => {
-      // 防目录穿越
-      const rel = file.name.replace(/\\/g, '/').replace(/^\/+/, '')
-      if (rel.includes('..')) return
-      const dest = path.join(destDir, rel)
-      fs.mkdirSync(path.dirname(dest), { recursive: true })
-      const ws = fs.createWriteStream(dest)
-      pending++
-      file.ondata = (err, chunk, final): void => {
-        if (err) {
-          if (!settled) {
-            settled = true
-            reject(err)
-          }
-          return
-        }
-        if (chunk && chunk.length) ws.write(chunk)
-        if (final) {
-          ws.end(() => {
-            pending--
-            maybeDone()
-          })
-        }
-      }
-      file.start()
-    }
-
-    const rs = fs.createReadStream(zipPath, { highWaterMark: 1 << 20 })
-    rs.on('data', (c) => unzip.push(new Uint8Array(c as Buffer), false))
-    rs.on('end', () => {
-      unzip.push(new Uint8Array(0), true)
-      ended = true
-      maybeDone()
-    })
-    rs.on('error', reject)
-  })
-}
 
 export interface MergeResult {
   entries: number
