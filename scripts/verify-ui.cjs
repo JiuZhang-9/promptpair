@@ -150,23 +150,31 @@ app.whenReady().then(async () => {
     const clickW3 = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
     assert(
       [clickW1, clickW2, clickW3].every((w) => Math.abs(w - beforeCardW) <= 5),
-      '点卡片打开详情时卡片不缩放',
+      '点卡片时卡片不缩放',
       { beforeCardW, clickW1, clickW2, clickW3 }
     )
     assert(
-      await js(win, `!!document.querySelector('.right-dock.open .detail')`),
-      '点卡片打开右侧详情'
+      !(await js(win, `!!document.querySelector('.right-dock.open .detail')`)),
+      '单击只选中，不弹右侧详情'
     )
-    const dhSub = await js(
+    await js(
       win,
-      `document.querySelector('.right-dock .dh-sub')?.textContent || ''`
+      `document.querySelector('.card').dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))`
     )
-    assert(
-      /即梦|MJ|SDXL|可灵/.test(dhSub),
-      '详情头部显示生成模型',
-      dhSub
-    )
+    await sleep(360)
+    assert(await js(win, `!!document.querySelector('.viewer-shell')`), '双击打开大图查看')
+    const vSub = await js(win, `document.querySelector('.v-sub')?.textContent || ''`)
+    assert(/即梦|MJ|SDXL|可灵/.test(vSub), '大图右侧显示生成模型', vSub)
+    await js(win, `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+    await sleep(240)
 
+    // 右侧栏现在只承载标签/模型/重复检测工具；Ctrl+Shift+B 用来收起/展开工具面板
+    await press(win, 'g', { ctrlKey: true, shiftKey: true })
+    await sleep(320)
+    assert(
+      await js(win, `document.querySelector('.right-dock').classList.contains('open')`),
+      '工具面板打开右栏'
+    )
     await press(win, 'b', { ctrlKey: true, shiftKey: true })
     await sleep(280)
     assert(
@@ -182,6 +190,8 @@ app.whenReady().then(async () => {
       !(await js(win, `document.querySelector('.right-dock').classList.contains('collapsed')`)),
       'Ctrl+Shift+B 展开右栏'
     )
+    await js(win, `document.querySelector('.right-dock .detail-head .icon-btn')?.click()`)
+    await sleep(220)
 
     console.log('\n→ 复制提示词…')
     win.show()
@@ -214,27 +224,32 @@ app.whenReady().then(async () => {
     await sleep(300)
     assert(clipboard.readText() === positive, 'Ctrl+C 复制焦点卡片提示词', clipboard.readText())
 
-    console.log('\n→ Shift+右键复制…')
+    console.log('\n→ 右键菜单…')
     win.focus()
     win.webContents.focus()
     await sleep(150)
-    clipboard.writeText('sentinel')
-    const shiftRight = await js(win, `
+    const rightMenu = await js(win, `
       (() => {
         const c = document.querySelector('.card')
         if (!c) return false
+        const r = c.getBoundingClientRect()
         c.dispatchEvent(new MouseEvent('contextmenu', {
-          bubbles: true, cancelable: true, shiftKey: true, clientX: 20, clientY: 20
+          bubbles: true, cancelable: true, clientX: r.x + 40, clientY: r.y + 40
         }))
         return true
       })()
     `)
-    await sleep(350)
+    await sleep(220)
     assert(
-      shiftRight && clipboard.readText() === positive,
-      'Shift+右键复制提示词',
-      clipboard.readText()
+      rightMenu && (await js(win, `!!document.querySelector('.ctx-menu')`)),
+      '右键卡片打开菜单'
     )
+    assert(
+      (await js(win, `document.querySelectorAll('.ctx-menu [data-ctx-copy]').length`)) >= 1,
+      '右键菜单含复制入口'
+    )
+    await js(win, `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+    await sleep(180)
 
     console.log('\n→ 收起动画不抖动…')
     const beforeW = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
@@ -309,8 +324,7 @@ app.whenReady().then(async () => {
     assert(!(await js(win, `!!document.querySelector('.marquee')`)), '松手后选择框消失')
 
     console.log('\n→ 点空白取消…')
-    await js(win, `document.querySelector('.right-dock .detail-head .icon-btn')?.click()`)
-    await sleep(300)
+    await sleep(120)
     assert(await js(win, `!!document.querySelector('.batchbar')`), '选中后出现底部条')
     await js(win, `
       (() => {
@@ -326,7 +340,8 @@ app.whenReady().then(async () => {
     `)
     await sleep(350)
     assert(!(await js(win, `!!document.querySelector('.batchbar')`)), '点空白收起底部条')
-    assert(!(await js(win, `!!document.querySelector('.detail')`)), '点空白关闭详情')
+    assert(!(await js(win, `!!document.querySelector('.viewer')`)), '点空白关闭大图')
+    assert(!(await js(win, `!!document.querySelector('.right-dock.open .detail')`)), '点空白不留下右侧详情')
   } catch (e) {
     console.error('\n❌ 验收异常：', e.message)
     failures++

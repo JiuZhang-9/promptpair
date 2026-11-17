@@ -39,8 +39,7 @@ interface Suggestion {
   reason: string
 }
 
-export default function TagManager(): React.ReactElement {
-  const panel = useStore((s) => s.panel)
+function TagManagerBody(): React.ReactElement {
   const setPanel = useStore((s) => s.setPanel)
   const data = useStore((s) => s.data)
   const refresh = useStore((s) => s.refresh)
@@ -50,6 +49,8 @@ export default function TagManager(): React.ReactElement {
   const [selected, setSelected] = useState<string[]>([])
   const [mergeOpen, setMergeOpen] = useState(false)
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null)
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [scanning, setScanning] = useState(false)
   const renameDone = useRef(false)
 
   const groups = useMemo(() => groupMap(data), [data])
@@ -71,48 +72,81 @@ export default function TagManager(): React.ReactElement {
       )
   }, [data.tags, counts, q])
 
-  const suggestions = useMemo<Suggestion[]>(() => {
+  /**
+   * 近似重复扫描：900 个标签两两比较约 500ms。
+   * 分片执行（每片 8ms），面板先打开、界面不冻结；评分等操作也不会触发重扫。
+   */
+  useEffect(() => {
+    const tags = data.tags
+    if (tags.length < 2) {
+      setSuggestions([])
+      setScanning(false)
+      return
+    }
+    let cancelled = false
+    let i = 0
+    let j = 1
     const out: Suggestion[] = []
     const seen = new Set<string>()
-    const tags = data.tags
-    for (let i = 0; i < tags.length; i++) {
-      for (let j = i + 1; j < tags.length; j++) {
-        const A = normalize(tags[i].name)
-        const B = normalize(tags[j].name)
-        if (!A || !B) continue
+    setScanning(true)
 
-        let reason = ''
-        if (A === B) {
-          reason = '名称相同'
-        } else {
-          const d = levenshtein(A, B)
-          const limit = Math.min(Array.from(A).length, Array.from(B).length) <= 3 ? 1 : 2
-          if (d <= limit) {
-            reason = `编辑距离 ${d}`
-          } else if (Array.from(A).length >= 2 && Array.from(B).length >= 2) {
-            const [short, long] = A.length <= B.length ? [A, B] : [B, A]
-            if (long.includes(short) && Array.from(short).length / Array.from(long).length >= 0.5) {
-              reason = '名称包含'
+    const step = (): void => {
+      if (cancelled) return
+      const start = performance.now()
+      while (i < tags.length - 1 && performance.now() - start < 8) {
+        while (j < tags.length && performance.now() - start < 8) {
+          const A = normalize(tags[i].name)
+          const B = normalize(tags[j].name)
+          if (A && B) {
+            let reason = ''
+            if (A === B) {
+              reason = '名称相同'
+            } else {
+              const d = levenshtein(A, B)
+              const limit = Math.min(Array.from(A).length, Array.from(B).length) <= 3 ? 1 : 2
+              if (d <= limit) {
+                reason = `编辑距离 ${d}`
+              } else if (Array.from(A).length >= 2 && Array.from(B).length >= 2) {
+                const [short, long] = A.length <= B.length ? [A, B] : [B, A]
+                if (
+                  long.includes(short) &&
+                  Array.from(short).length / Array.from(long).length >= 0.5
+                ) {
+                  reason = '名称包含'
+                }
+              }
+            }
+            if (reason) {
+              const key = [tags[i].id, tags[j].id].sort().join(':')
+              if (!seen.has(key)) {
+                seen.add(key)
+                out.push({ a: tags[i], b: tags[j], reason })
+              }
             }
           }
+          j++
         }
-        if (!reason) continue
+        if (j >= tags.length) {
+          i++
+          j = i + 1
+        }
+      }
 
-        const key = [tags[i].id, tags[j].id].sort().join(':')
-        if (seen.has(key)) continue
-        seen.add(key)
-        out.push({ a: tags[i], b: tags[j], reason })
+      if (i < tags.length - 1) {
+        setTimeout(step, 0)
+      } else {
+        out.sort((x, y) => x.a.name.localeCompare(y.a.name, 'zh-Hans-CN'))
+        setSuggestions(out.slice(0, 20))
+        setScanning(false)
       }
     }
-    return out
-      .sort(
-        (x, y) =>
-          (counts.get(y.a.id) ?? 0) +
-          (counts.get(y.b.id) ?? 0) -
-          ((counts.get(x.a.id) ?? 0) + (counts.get(x.b.id) ?? 0))
-      )
-      .slice(0, 20)
-  }, [data.tags, counts])
+
+    const timer = setTimeout(step, 40)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [data.tags])
 
   // 标签被删/合并后，清掉已不存在的选中项
   useEffect(() => {
@@ -121,8 +155,6 @@ export default function TagManager(): React.ReactElement {
       return next.length === prev.length ? prev : next
     })
   }, [data.tags])
-
-  if (panel !== 'tags') return <></>
 
   const toggle = (id: string): void =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
@@ -345,6 +377,15 @@ export default function TagManager(): React.ReactElement {
           </div>
         )}
 
+        {scanning && (
+          <div className="tm-suggest scanning">
+            <div className="tm-suggest-head">
+              <span>近似重复建议</span>
+              <span className="tm-suggest-count">扫描中…</span>
+            </div>
+          </div>
+        )}
+
         {suggestions.length > 0 && (
           <div className="tm-suggest">
             <div className="tm-suggest-head">
@@ -434,4 +475,15 @@ export default function TagManager(): React.ReactElement {
       </Modal>
     </aside>
   )
+}
+
+/**
+ * 外壳只订阅 panel；面板没打开时完全不挂载 Body。
+ * 这一步是评分卡顿的关键修复：Body 里的「疑似重复」要跑 900+ 标签两两比较（实测约 500ms），
+ * 以前即使面板关着也会在每次评分时重算。
+ */
+export default function TagManager(): React.ReactElement {
+  const panel = useStore((s) => s.panel)
+  if (panel !== 'tags') return <></>
+  return <TagManagerBody />
 }

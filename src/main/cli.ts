@@ -16,12 +16,14 @@
  */
 
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { execSync } from 'node:child_process'
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, net } from 'electron'
 import { Library } from './library'
 import { Config } from './config'
 import { addFileToLibrary } from './media'
+import { kindOfExt } from '../shared/types'
 import type { EntryDraft, ImportResult, PromptEntry } from '../shared/types'
 
 /** 批次文件里的一条待录入条目 */
@@ -39,8 +41,9 @@ export interface CliEntryInput {
   /** 按名字给标签 / 集合，不存在则自动创建；标签可带组名（组不存在则建组） */
   tags?: (string | { name: string; group?: string })[]
   collections?: string[]
-  /** 顺序即入库顺序（约定「原图在前、成图在后」）；role 仅作备注，暂不落库 */
-  assets?: { path: string; role?: string }[]
+  /** 顺序即入库顺序（约定「原图在前、成图在后」）；role 仅作备注，暂不落库。
+   *  path = 本地文件；url = 远程图片/视频（http/https），由 CLI 自动下载后入库。 */
+  assets?: { path?: string; url?: string; role?: string }[]
 }
 
 export interface CliBatch {
@@ -98,6 +101,8 @@ function findEntryByOriginId(lib: Library, originId: string): PromptEntry | unde
 
 /** 库被 GUI 打开时写库会被旧内存覆盖，直接拒绝 */
 function guardNoRunningApp(): void {
+  // 自动化验收用：允许在 GUI 运行时对隔离的临时库执行写入
+  if (process.env.PP_CLI_ALLOW_RUNNING === '1') return
   if (process.platform !== 'win32') return
   try {
     const out = execSync('tasklist /FI "IMAGENAME eq PromptPair.exe" /FO CSV /NH', {
@@ -138,10 +143,66 @@ function precheckAssets(batch: CliBatch): { key: string; path: string }[] {
   const missing: { key: string; path: string }[] = []
   for (const it of batch.entries) {
     for (const a of it.assets ?? []) {
-      if (!fs.existsSync(a.path)) missing.push({ key: it.title || it.originId || '?', path: a.path })
+      if (a.path && !fs.existsSync(a.path)) {
+        missing.push({ key: it.title || it.originId || '?', path: a.path })
+      }
     }
   }
   return missing
+}
+
+const MAX_REMOTE_BYTES = 200 * 1024 * 1024
+
+function extFromRemote(contentType: string, url: string): string {
+  const ct = contentType.toLowerCase()
+  if (ct.includes('png')) return '.png'
+  if (ct.includes('jpeg') || ct.includes('jpg')) return '.jpg'
+  if (ct.includes('webp')) return '.webp'
+  if (ct.includes('gif')) return '.gif'
+  if (ct.includes('avif')) return '.avif'
+  if (ct.includes('mp4')) return '.mp4'
+  if (ct.includes('webm')) return '.webm'
+  if (ct.includes('quicktime')) return '.mov'
+  try {
+    const ext = path.extname(new URL(url).pathname).toLowerCase()
+    if (kindOfExt(ext)) return ext
+  } catch {
+    /* ignore */
+  }
+  return '.png'
+}
+
+/** 把批次里的远程图片/视频下载到临时文件；返回本地路径，调用方负责清理 */
+async function downloadRemoteAsset(url: string): Promise<string> {
+  if (!/^https?:\/\//i.test(url)) throw new Error('assets.url 只支持 http/https')
+  let referer = ''
+  try {
+    referer = new URL(url).origin + '/'
+  } catch {
+    referer = ''
+  }
+  let res: Response
+  try {
+    res = await net.fetch(url, {
+      headers: {
+        ...(referer ? { Referer: referer } : {}),
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36'
+      }
+    })
+  } catch (e) {
+    throw new Error('下载远程媒体失败：' + (e as Error).message)
+  }
+  if (!res.ok) throw new Error(`下载远程媒体失败 HTTP ${res.status}`)
+  const buf = Buffer.from(await res.arrayBuffer())
+  if (buf.byteLength > MAX_REMOTE_BYTES) throw new Error('远程媒体超过 200MB，未下载')
+  const ext = extFromRemote(res.headers.get('content-type') ?? '', url)
+  const file = path.join(
+    os.tmpdir(),
+    `pp-cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`
+  )
+  fs.writeFileSync(file, buf)
+  return file
 }
 
 function backupLibrary(lib: Library): void {
@@ -195,12 +256,35 @@ export async function importBatchIntoLibrary(
         continue
       }
 
+      // 先把本地路径 / 远程 URL 都落实成可读文件；远程下载失败时不产生半条记录
       const assetIds: string[] = []
-      for (const a of it.assets ?? []) {
-        const res = await addFileToLibrary(lib, a.path)
-        assetIds.push(res.asset.id)
-        if (res.reused) stats.reusedAssets++
-        else stats.importedAssets++
+      const localFiles: { file: string; temp: boolean }[] = []
+      try {
+        for (const a of it.assets ?? []) {
+          if (a.path) {
+            localFiles.push({ file: a.path, temp: false })
+          } else if (a.url) {
+            localFiles.push({ file: await downloadRemoteAsset(a.url), temp: true })
+          } else {
+            throw new Error('assets 项缺少 path 或 url')
+          }
+        }
+
+        for (const a of localFiles) {
+          const res = await addFileToLibrary(lib, a.file)
+          assetIds.push(res.asset.id)
+          if (res.reused) stats.reusedAssets++
+          else stats.importedAssets++
+        }
+      } finally {
+        for (const a of localFiles) {
+          if (!a.temp) continue
+          try {
+            fs.rmSync(a.file, { force: true })
+          } catch {
+            /* ignore */
+          }
+        }
       }
       const tagIds = (it.tags ?? []).map((t) => {
         if (typeof t === 'string') return lib.ensureTag(t).id

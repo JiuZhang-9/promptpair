@@ -89,22 +89,21 @@ app.whenReady().then(async () => {
     fs.writeFileSync(path.join(OUT, '01b-cards-zoom.png'), zoom.toPNG())
     console.log('  ✓ 01b-cards-zoom.png')
 
-    // 打开第一条记录的详情面板
+    // 双击第一条记录，打开大图查看
     await win.webContents.executeJavaScript(`
       (() => {
         const c = document.querySelector('.card')
-        if (c) c.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        if (c) c.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
         return !!c
       })()
     `)
     await sleep(900)
     await shot(win, '02-detail')
 
-    // 关闭详情，打开编辑器
+    // 关闭大图，打开编辑器
     await win.webContents.executeJavaScript(`
       (() => {
-        const x = document.querySelector('.detail .detail-head .icon-btn')
-        if (x) x.click()
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
         return true
       })()
     `)

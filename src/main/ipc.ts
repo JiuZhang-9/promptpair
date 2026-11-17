@@ -15,7 +15,7 @@ import type {
   SavedView
 } from '../shared/types'
 import { kindOfExt } from '../shared/types'
-import { Library } from './library'
+import { Library, safeName } from './library'
 import type { Config } from './config'
 import { defaultLibraryPath } from './config'
 import { importCaptured, importFiles, type ImportOptions } from './importer'
@@ -206,7 +206,8 @@ export function registerIpc(ctx: AppCtx): void {
 
   ipcMain.handle('entry:batch', (_e, ids: string[], patch: BatchPatch) => {
     const n = ctx.lib.batchPatch(ids, patch)
-    ctx.lib.flush()
+    // 评分/收藏是高频动作：内存立即生效，落盘延迟 250ms，避免每次点星都同步写整库
+    ctx.lib.touch()
     return { updated: n }
   })
 
@@ -321,6 +322,18 @@ export function registerIpc(ctx: AppCtx): void {
     return true
   })
 
+  ipcMain.handle('collection:move', (_e, fromId: string, toId: string) => {
+    const r = ctx.lib.moveCollectionContents(fromId, toId)
+    ctx.lib.flush()
+    return r
+  })
+
+  ipcMain.handle('collection:merge', (_e, fromIds: string[], toId: string) => {
+    const r = ctx.lib.mergeCollections(fromIds, toId)
+    ctx.lib.flush()
+    return r
+  })
+
   /* ───────────── 导入 ───────────── */
 
   ipcMain.handle('import:pickFiles', async () => {
@@ -414,6 +427,26 @@ export function registerIpc(ctx: AppCtx): void {
     shell.showItemInFolder(ctx.lib.abs(a.relPath))
     return true
   })
+
+  /** 另存原图 / 原视频到用户选择的位置（不复制进库，只复制文件） */
+  ipcMain.handle(
+    'asset:saveAs',
+    async (_e, assetId: string, suggestedName?: string): Promise<string | null> => {
+      const a = ctx.lib.getAsset(assetId)
+      if (!a) throw new Error('资源不存在')
+      const ext = (path.extname(a.relPath) || a.ext || '').toLowerCase()
+      const fallback = path.basename(a.relPath, ext)
+      const base = safeName((suggestedName || fallback).replace(/\.[a-z0-9]+$/i, ''), fallback)
+      const r = await saveDialog(ctx, {
+        title: '另存为',
+        defaultPath: path.join(app.getPath('downloads'), base + ext),
+        filters: [{ name: a.kind === 'video' ? '视频文件' : '图片文件', extensions: [ext.replace(/^\./, '')] }]
+      })
+      if (r.canceled || !r.filePath) return null
+      fs.copyFileSync(ctx.lib.abs(a.relPath), r.filePath)
+      return r.filePath
+    }
+  )
 
   ipcMain.handle('asset:repairAll', async () => {
     let fixed = 0

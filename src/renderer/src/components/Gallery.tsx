@@ -1,8 +1,17 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import type { Asset, PromptEntry } from '../../../shared/types'
-import { assetMap, selectEntries, tagMap, thumbUrl, mediaUrl, useStore, groupMap } from '../store'
-import { copyVariants, variantText, type CopyVariant } from '../copyVariants'
+import type { Asset, Collection, PromptEntry } from '../../../shared/types'
+import {
+  assetMap,
+  collMap,
+  selectEntries,
+  thumbUrl,
+  mediaUrl,
+  useStore,
+  groupMap
+} from '../store'
+import { parseQuery } from '../query'
+import { copyVariants, isMjEntry, variantText, type CopyVariant } from '../copyVariants'
 import { Empty, Icon, Stars, copyText, formatClock } from './ui'
 
 const PAD = 18
@@ -32,17 +41,20 @@ function Card({
   thumbH,
   assets,
   tagInfo,
+  colls,
   activeTagIds,
   selected,
   focused,
   onSelect,
-  onOpenDetail,
+  onOpenViewer,
   onEdit,
   onCopy,
   onCopyVariant,
   onRate,
   onToggleFavorite,
-  onTagClick
+  onTagClick,
+  onCollectionClick,
+  onContextMenu
 }: {
   entry: PromptEntry
   width: number
@@ -50,23 +62,33 @@ function Card({
   thumbH?: number
   assets: Map<string, Asset>
   tagInfo: Map<string, { name: string; color: string }>
+  colls: Map<string, Collection>
   activeTagIds: string[]
   selected: boolean
   focused: boolean
   onSelect: (e: React.MouseEvent) => void
-  onOpenDetail: () => void
+  onOpenViewer: () => void
   onEdit: () => void
-  onCopy: () => void
-  onCopyVariant?: (id: CopyVariant['id']) => void
+  onCopy: (e: React.MouseEvent) => void
+  onCopyVariant?: (id: CopyVariant['id'], e: React.MouseEvent) => void
   onRate: (v: number) => void
   onToggleFavorite: () => void
   onTagClick: (tagId: string) => void
+  onCollectionClick: (collectionId: string) => void
+  onContextMenu: (e: React.MouseEvent) => void
 }): React.ReactElement {
   const first = assets.get(entry.assetIds[0] ?? '')
   const video = first?.kind === 'video'
   const multi = entry.assetIds.length > 1
   const model = entry.params?.model?.trim()
-  const shownTags = entry.tagIds.slice(0, model ? 1 : 2)
+  const coll = entry.collectionIds.length ? colls.get(entry.collectionIds[0]) : undefined
+  const activeSet = useMemo(() => new Set(activeTagIds), [activeTagIds])
+  // 搜索标签时只展示被搜索的标签；平时保持「模型 + 前 1–2 个标签」的紧凑密度
+  const matchedTags = activeSet.size
+    ? entry.tagIds.filter((id) => activeSet.has(id))
+    : []
+  const shownTags = activeSet.size ? matchedTags : entry.tagIds.slice(0, model ? 1 : 2)
+  const hiddenTagCount = activeSet.size ? 0 : Math.max(0, entry.tagIds.length - shownTags.length)
   const variants = useMemo(() => copyVariants(entry), [entry])
   const codeMode = entry.params?.extra?.['mjCodeMode']
   const codeCount = entry.params?.extra?.['mjCodeCount']
@@ -95,18 +117,14 @@ function Card({
       onClick={onSelect}
       onDoubleClick={(e) => {
         e.preventDefault()
-        onEdit()
+        onOpenViewer()
       }}
-      onContextMenu={(e) => {
-        if (!e.shiftKey) return
-        e.preventDefault()
-        onCopy()
-      }}
+      onContextMenu={onContextMenu}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if ((e.target as HTMLElement).closest('button')) return
-        if (e.key === 'Enter') onOpenDetail()
+        if (e.key === 'Enter') onOpenViewer()
       }}
       title={entry.title}
     >
@@ -178,7 +196,7 @@ function Card({
               onToggleFavorite()
             }}
           >
-            <Icon name="star" size={14} />
+            <Icon name="heart" size={14} />
           </button>
         </div>
 
@@ -192,7 +210,7 @@ function Card({
                 title="复制提示词（悬停可选：提示词+参数 / 仅参数 / 风格码+参数）"
                 onClick={(e) => {
                   e.stopPropagation()
-                  onCopy()
+                  onCopy(e)
                 }}
               >
                 <Icon name="copy" size={13} />
@@ -209,7 +227,7 @@ function Card({
                       data-copy={v.id}
                       onClick={(e) => {
                         e.stopPropagation()
-                        onCopyVariant?.(v.id)
+                        onCopyVariant?.(v.id, e)
                       }}
                     >
                       {v.label}
@@ -221,10 +239,10 @@ function Card({
           <button
             type="button"
             className="mini-btn"
-            title="查看详情"
+            title="放大查看"
             onClick={(e) => {
               e.stopPropagation()
-              onOpenDetail()
+              onOpenViewer()
             }}
           >
             <Icon name="eye" size={13} />
@@ -266,8 +284,22 @@ function Card({
         <div className={'card-prompt' + (entry.positive ? '' : ' dim')}>
           {entry.positive || '（暂无提示词，双击补充）'}
         </div>
-        {(model || entry.tagIds.length > 0) && (
+        {(model || coll || shownTags.length > 0) && (
           <div className="card-tags">
+            {coll && (
+              <button
+                type="button"
+                className="mini-tag coll"
+                title={`所属集合：${coll.name}（点击筛选）`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onCollectionClick(coll.id)
+                }}
+              >
+                <Icon name="folder" size={10} />
+                <span className="ellipsis">{coll.name}</span>
+              </button>
+            )}
             {model && (
               <span className="mini-tag model" title={`模型：${model}`}>
                 {model}
@@ -292,9 +324,7 @@ function Card({
                 </button>
               )
             })}
-            {entry.tagIds.length > shownTags.length && (
-              <span className="mini-tag more">+{entry.tagIds.length - shownTags.length}</span>
-            )}
+            {hiddenTagCount > 0 && <span className="mini-tag more">+{hiddenTagCount}</span>}
           </div>
         )}
       </div>
@@ -311,23 +341,30 @@ export default function Gallery(): React.ReactElement {
   const setFocusIndex = useStore((s) => s.setFocusIndex)
   const tagIds = useStore((s) => s.tagIds)
   const filterByTag = useStore((s) => s.filterByTag)
+  const setCollection = useStore((s) => s.setCollection)
   const patchEntries = useStore((s) => s.patchEntries)
   const q = useStore((s) => s.q)
   const resetFilters = useStore((s) => s.resetFilters)
   const select = useStore((s) => s.select)
   const selectMany = useStore((s) => s.selectMany)
   const clearSelection = useStore((s) => s.clearSelection)
-  const openDetail = useStore((s) => s.openDetail)
+  const openViewer = useStore((s) => s.openViewer)
+  const closeViewer = useStore((s) => s.closeViewer)
   const startEdit = useStore((s) => s.startEdit)
   const startCreate = useStore((s) => s.startCreate)
   const importDialog = useStore((s) => s.importDialog)
   const doImport = useStore((s) => s.doImport)
+  const removeEntries = useStore((s) => s.removeEntries)
+  const exportPack = useStore((s) => s.exportPack)
+  const exportHtml = useStore((s) => s.exportHtml)
+  const askConfirm = useStore((s) => s.askConfirm)
+  const showTip = useStore((s) => s.showTip)
   const toast = useStore((s) => s.toast)
 
   const entries = useStore(useShallow(selectEntries))
-  const assets = useMemo(() => assetMap(data), [data])
-  const tags = useMemo(() => tagMap(data), [data])
-  const groups = useMemo(() => groupMap(data), [data])
+  const assets = useMemo(() => assetMap(data), [data.assets])
+  const groups = useMemo(() => groupMap(data), [data.tagGroups])
+  const colls = useMemo(() => collMap(data), [data.collections])
   const tagInfo = useMemo(() => {
     const m = new Map<string, { name: string; color: string }>()
     for (const t of data.tags) {
@@ -336,6 +373,20 @@ export default function Gallery(): React.ReactElement {
     }
     return m
   }, [data.tags, groups])
+
+  // 搜索里有 tag: 时，卡片只显示被搜索的标签（左侧 tagIds 也算）
+  const activeTagIds = useMemo(() => {
+    const set = new Set(tagIds)
+    const parsed = parseQuery(q)
+    if (parsed.tags.length) {
+      const needles = parsed.tags.map((x) => x.toLowerCase())
+      for (const t of data.tags) {
+        const name = t.name.toLowerCase()
+        if (needles.some((n) => name.includes(n))) set.add(t.id)
+      }
+    }
+    return [...set]
+  }, [tagIds, q, data.tags])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -347,7 +398,38 @@ export default function Gallery(): React.ReactElement {
   const [scrollTop, setScrollTop] = useState(0)
   const [marquee, setMarquee] = useState<MarqueeRect | null>(null)
   const [dragging, setDragging] = useState(false)
+  const [cardMenu, setCardMenu] = useState<{ entryId: string; x: number; y: number } | null>(null)
+  const [menuExport, setMenuExport] = useState(false)
+  const cardMenuRef = useRef<HTMLDivElement>(null)
+  const suppressFocusScroll = useRef(false)
   const dragDepth = useRef(0)
+
+  // 右键菜单：视口边缘收进来；滚动/Esc/点外部关闭
+  useLayoutEffect(() => {
+    if (!cardMenu || !cardMenuRef.current) return
+    const el = cardMenuRef.current
+    const r = el.getBoundingClientRect()
+    const left = Math.max(8, Math.min(window.innerWidth - r.width - 8, cardMenu.x))
+    const top = Math.max(8, Math.min(window.innerHeight - r.height - 8, cardMenu.y))
+    el.style.left = `${left}px`
+    el.style.top = `${top}px`
+  }, [cardMenu, menuExport])
+
+  useEffect(() => {
+    if (!cardMenu) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setCardMenu(null)
+    }
+    const onScroll = (): void => setCardMenu(null)
+    document.addEventListener('keydown', onKey, true)
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onScroll)
+    return () => {
+      document.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [cardMenu])
 
   useLayoutEffect(() => {
     const el = scrollRef.current
@@ -433,6 +515,11 @@ export default function Gallery(): React.ReactElement {
   // 键盘焦点移动时，把目标行/卡片滚进视野（瀑布流按卡片实际位置）
   useEffect(() => {
     if (focusIndex == null) return
+    // 右键菜单会顺带设置焦点；这里不要因此触发滚动，否则菜单会被 scroll 监听立刻关掉
+    if (suppressFocusScroll.current) {
+      suppressFocusScroll.current = false
+      return
+    }
     const el = scrollRef.current
     if (!el) return
     let top: number, bottom: number
@@ -591,7 +678,7 @@ export default function Gallery(): React.ReactElement {
       } else if (d) {
         // 空白处单击：清空选中并收起详情
         clearSelection()
-        openDetail(null)
+        closeViewer()
       }
     }
 
@@ -641,6 +728,9 @@ export default function Gallery(): React.ReactElement {
   }
 
   const hasAnyEntry = data.entries.length > 0
+  const menuEntry = cardMenu ? data.entries.find((e) => e.id === cardMenu.entryId) : undefined
+  const menuAsset = menuEntry ? assets.get(menuEntry.assetIds[0] ?? '') : undefined
+  const menuVariants = menuEntry ? copyVariants(menuEntry) : []
 
   /** 卡片渲染（网格与瀑布流共用）：index 用于选中/焦点，thumbH 仅瀑布流传入 */
   const renderCard = (entry: PromptEntry, index: number, thumbH?: number): React.ReactElement => (
@@ -651,7 +741,8 @@ export default function Gallery(): React.ReactElement {
       thumbH={thumbH}
       assets={assets}
       tagInfo={tagInfo}
-      activeTagIds={tagIds}
+      colls={colls}
+      activeTagIds={activeTagIds}
       selected={selectedIds.includes(entry.id)}
       focused={focusIndex === index}
       onSelect={(e) => {
@@ -661,25 +752,27 @@ export default function Gallery(): React.ReactElement {
         if (range || additive) {
           select(entry.id, { additive, range })
         } else {
+          // 0.13.0：单击只选中；双击 / 回车 / 眼睛打开大图
           select(entry.id)
-          openDetail(entry.id)
         }
       }}
-      onOpenDetail={() => {
+      onOpenViewer={() => {
         setFocusIndex(index)
         select(entry.id)
-        openDetail(entry.id)
+        openViewer(entry.id)
       }}
       onEdit={() => startEdit(entry.id)}
-      onCopy={() => {
+      onCopy={(e) => {
         if (!entry.positive && !entry.note) return
-        void copyText(copyVariants(entry)[0].text)
-          .then(() => toast('已复制提示词', 'ok'))
+        const text = copyVariants(entry)[0].text
+        void copyText(text)
+          .then(() => showTip('已复制提示词', e.clientX, e.clientY))
           .catch(() => toast('复制失败，请手动选中文本', 'err'))
       }}
-      onCopyVariant={(vid) => {
+      onCopyVariant={(vid, e) => {
+        const v = copyVariants(entry).find((x) => x.id === vid)
         void copyText(variantText(entry, vid))
-          .then(() => toast('已复制', 'ok'))
+          .then(() => showTip('已复制' + (v ? '：' + v.label.replace(/^复制/, '') : ''), e.clientX, e.clientY))
           .catch(() => toast('复制失败，请手动选中文本', 'err'))
       }}
       onRate={(v) =>
@@ -689,6 +782,16 @@ export default function Gallery(): React.ReactElement {
         void patchEntries([entry.id], { favorite: !entry.favorite }, { optimistic: true, quiet: true })
       }
       onTagClick={(id) => filterByTag(id)}
+      onCollectionClick={(id) => setCollection(id)}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        suppressFocusScroll.current = true
+        setFocusIndex(index)
+        if (!selectedIds.includes(entry.id)) select(entry.id)
+        setMenuExport(false)
+        setCardMenu({ entryId: entry.id, x: e.clientX, y: e.clientY })
+      }}
     />
   )
 
@@ -801,6 +904,137 @@ export default function Gallery(): React.ReactElement {
             <div className="dz-desc">
               会自动按文件夹名打标签、读取同名 .txt 提示词、把连号文件合并成一条记录
             </div>
+          </div>
+        </div>
+      )}
+
+      {cardMenu && menuEntry && (
+        <div className="ctx-backdrop" onMouseDown={() => setCardMenu(null)}>
+          <div
+            className="ctx-menu"
+            ref={cardMenuRef}
+            style={{ left: cardMenu.x, top: cardMenu.y }}
+            onMouseDown={(e) => e.stopPropagation()}
+            role="menu"
+            aria-label="卡片菜单"
+          >
+            <div className="ctx-head" title={menuEntry.title}>
+              {menuEntry.title || '未命名'}
+            </div>
+            {menuVariants
+              .filter((v) => v.id === 'prompt' || !v.disabled || isMjEntry(menuEntry))
+              .map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  className="ctx-item"
+                  role="menuitem"
+                  data-ctx-copy={v.id}
+                  disabled={v.disabled}
+                  title={v.disabled ? '这条记录没有对应内容' : v.text.slice(0, 120)}
+                  onClick={() => {
+                    void copyText(v.text)
+                      .then(() => showTip('已复制：' + v.label.replace(/^复制/, ''), cardMenu.x, cardMenu.y))
+                      .catch(() => toast('复制失败，请手动选中文本', 'err'))
+                    setCardMenu(null)
+                  }}
+                >
+                  <Icon name="copy" size={13} />
+                  {v.label}
+                </button>
+              ))}
+            <div className="ctx-sep" />
+            <button
+              type="button"
+              className="ctx-item"
+              role="menuitem"
+              onClick={() => {
+                openViewer(menuEntry.id)
+                setCardMenu(null)
+              }}
+            >
+              <Icon name="eye" size={13} /> 放大查看
+            </button>
+            <button
+              type="button"
+              className="ctx-item"
+              role="menuitem"
+              onClick={() => {
+                startEdit(menuEntry.id)
+                setCardMenu(null)
+              }}
+            >
+              <Icon name="edit" size={13} /> 编辑
+            </button>
+            <button
+              type="button"
+              className="ctx-item"
+              role="menuitem"
+              onClick={() => setMenuExport((v) => !v)}
+            >
+              <Icon name="download" size={13} /> 导出 / 另存为
+              <span className="ctx-sub">{menuExport ? '▾' : '▸'}</span>
+            </button>
+            {menuExport && (
+              <div className="ctx-subgroup">
+                <button
+                  type="button"
+                  className="ctx-item"
+                  disabled={!menuAsset}
+                  onClick={() => {
+                    if (!menuAsset) return
+                    void window.pp
+                      .saveAssetAs(menuAsset.id, menuEntry.title)
+                      .then((p) => {
+                        if (p) toast('已另存为：' + p, 'ok')
+                      })
+                      .catch((err) => toast('另存失败：' + (err as Error).message, 'err'))
+                    setCardMenu(null)
+                  }}
+                >
+                  <Icon name="image" size={13} /> {menuAsset?.kind === 'video' ? '另存原视频…' : '另存原图…'}
+                </button>
+                <button
+                  type="button"
+                  className="ctx-item"
+                  onClick={() => {
+                    void exportPack([menuEntry.id], true, menuEntry.title)
+                    setCardMenu(null)
+                  }}
+                >
+                  <Icon name="package" size={13} /> 导出分享包（此条）
+                </button>
+                <button
+                  type="button"
+                  className="ctx-item"
+                  onClick={() => {
+                    void exportHtml([menuEntry.id], 'thumb', menuEntry.title)
+                    setCardMenu(null)
+                  }}
+                >
+                  <Icon name="external" size={13} /> 导出单页 HTML（此条）
+                </button>
+              </div>
+            )}
+            <div className="ctx-sep" />
+            <button
+              type="button"
+              className="ctx-item danger"
+              role="menuitem"
+              onClick={() => {
+                const title = menuEntry.title || '未命名'
+                setCardMenu(null)
+                askConfirm({
+                  title: '删除记录',
+                  message: `确定删除「${title}」？\n不再被引用的媒体文件会一并清理。`,
+                  confirmLabel: '删除',
+                  danger: true,
+                  onConfirm: () => removeEntries([menuEntry.id])
+                })
+              }}
+            >
+              <Icon name="trash" size={13} /> 删除
+            </button>
           </div>
         </div>
       )}

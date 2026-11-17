@@ -11,6 +11,11 @@ import { initUpdater, onUpdateStatus } from './updater'
 import { startCaptureServer, stopCaptureServer } from './capture'
 import { applyTitleBarOverlay, applyUiScale, clampUiScale, TITLEBAR_HEIGHT } from './appearance'
 
+// 自动化验收：CLI 使用隔离的 userData，避免和正在运行的 GUI 抢单实例锁
+if (process.env.PP_CLI_USER_DATA) {
+  app.setPath('userData', path.resolve(process.env.PP_CLI_USER_DATA))
+}
+
 // ── CLI 模式：`--cli` 走无头命令行（复用库核心逻辑），不建窗口不装协议
 const CLI_MODE = isCliRequest()
 // 只有写操作（add 且非 dry-run）需要独占库；list / dry-run 只读，可与 GUI 并存

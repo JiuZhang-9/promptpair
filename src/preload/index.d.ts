@@ -5,6 +5,8 @@ import type {
   Asset,
   BatchPatch,
   Collection,
+  CollectionMergeResult,
+  CollectionMoveResult,
   DuplicateGroup,
   EntryDraft,
   ImportResult,
@@ -96,6 +98,8 @@ export interface PpApi {
   createCollection(name: string, color: string): Promise<Collection>
   updateCollection(id: string, patch: { name?: string; color?: string }): Promise<Collection>
   deleteCollection(id: string): Promise<boolean>
+  moveCollectionContents(fromId: string, toId: string): Promise<CollectionMoveResult>
+  mergeCollections(fromIds: string[], toId: string): Promise<CollectionMergeResult>
 
   pickFiles(): Promise<string[]>
   pickFolder(): Promise<string[]>
@@ -104,6 +108,7 @@ export interface PpApi {
   addAssets(paths: string[]): Promise<Asset[]>
   addFromClipboard(): Promise<Asset | null>
   revealAsset(assetId: string): Promise<boolean>
+  saveAssetAs(assetId: string, suggestedName?: string): Promise<string | null>
   repairAssets(): Promise<{ fixed: number }>
 
   scanDuplicates(threshold?: number): Promise<DupReport>

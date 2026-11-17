@@ -109,6 +109,18 @@ export interface Collection {
   createdAt: string
 }
 
+/** 集合内容移动 / 合并的结果（0.13.0） */
+export interface CollectionMoveResult {
+  /** 受影响的记录数 */
+  moved: number
+  target: Collection
+}
+
+export interface CollectionMergeResult extends CollectionMoveResult {
+  /** 被合并掉的来源集合数（不含目标） */
+  merged: number
+}
+
 /* ────────────────────────── 模型词表 ────────────────────────── */
 
 /** 模型类型：只用于分组与筛选，不参与导出 */

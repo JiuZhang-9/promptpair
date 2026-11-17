@@ -1,6 +1,9 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
+import type { Collection } from '../../../shared/types'
 import { useStore, tagMap, groupMap, selectEntries } from '../store'
-import { Icon } from './ui'
+import { parseQuery } from '../query'
+import { Icon, Modal } from './ui'
 
 // 单色设计：集合/标签组一律用灰阶，不用彩色
 const PRESET_COLORS = ['#c7c7cc', '#a1a1aa', '#8e8e93', '#71717a', '#5a5a60', '#b4b4bb', '#3f3f46']
@@ -69,24 +72,34 @@ export default function Sidebar(): React.ReactElement {
   const resetFilters = useStore((s) => s.resetFilters)
   const toast = useStore((s) => s.toast)
   const refresh = useStore((s) => s.refresh)
+  const askConfirm = useStore((s) => s.askConfirm)
 
   const views = data.views ?? []
-  const tags = useMemo(() => tagMap(data), [data])
-  const groups = useMemo(() => groupMap(data), [data])
+  const tags = useMemo(() => tagMap(data), [data.tags])
+  const groups = useMemo(() => groupMap(data), [data.tagGroups])
 
-  // 标签计数：基于「除标签筛选外」的集合，方便看出交叉组合还剩多少
+  // 计数跟随当前搜索：算标签时忽略标签筛选本身，算集合时忽略集合筛选本身
+  const tagBase = useStore(useShallow((s) => selectEntries(s, { ignoreTags: true })))
+  const collBase = useStore(useShallow((s) => selectEntries(s, { ignoreCollection: true })))
+
   const tagCounts = useMemo(() => {
     const m = new Map<string, number>()
-    const noTagFilter: typeof data.entries = data.entries.filter((e) => {
-      if (collectionId && !e.collectionIds.includes(collectionId)) return false
-      if (onlyFavorite && !e.favorite) return false
-      if (ratingMin > 0 && e.rating < ratingMin) return false
-      if (platform && (e.source?.platform ?? '') !== platform) return false
-      return true
-    })
-    for (const e of noTagFilter) for (const t of e.tagIds) m.set(t, (m.get(t) ?? 0) + 1)
+    for (const e of tagBase) for (const t of e.tagIds) m.set(t, (m.get(t) ?? 0) + 1)
     return m
-  }, [data.entries, collectionId, onlyFavorite, ratingMin, platform])
+  }, [tagBase])
+
+  const collCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const e of collBase) for (const id of e.collectionIds) m.set(id, (m.get(id) ?? 0) + 1)
+    return m
+  }, [collBase])
+
+  // 集合操作弹窗显示全库总数，不受当前搜索影响
+  const totalCollCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const e of data.entries) for (const id of e.collectionIds) m.set(id, (m.get(id) ?? 0) + 1)
+    return m
+  }, [data.entries])
 
   const modelChips = useMemo(() => {
     const counts = new Map<string, number>()
@@ -123,10 +136,23 @@ export default function Sidebar(): React.ReactElement {
   }, [data.entries])
 
   const resultCount = useStore((s) => selectEntries(s).length)
+  const queryTags = useMemo(
+    () => parseQuery(q).tags.map((x) => x.trim().toLowerCase()).filter(Boolean),
+    [q]
+  )
 
   const groupedTags = useMemo(() => {
     const byGroup = new Map<string, { id: string; name: string }[]>()
     for (const t of data.tags) {
+      const n = tagCounts.get(t.id) ?? 0
+      // 搜索标签时只保留被搜索的；平时只保留当前结果里出现的（已选中的始终保留）
+      const name = t.name.toLowerCase()
+      const visible = tagIds.includes(t.id)
+        ? true
+        : queryTags.length
+          ? queryTags.some((needle) => name.includes(needle))
+          : n > 0
+      if (!visible) continue
       const gid = t.groupId && groups.has(t.groupId) ? t.groupId : ''
       const arr = byGroup.get(gid) ?? []
       arr.push({ id: t.id, name: t.name })
@@ -136,12 +162,7 @@ export default function Sidebar(): React.ReactElement {
       arr.sort((a, b) => (tagCounts.get(b.id) ?? 0) - (tagCounts.get(a.id) ?? 0))
     }
     return byGroup
-  }, [data.tags, groups, tagCounts])
-
-  const sortedGroups = useMemo(
-    () => [...data.tagGroups].sort((a, b) => a.order - b.order),
-    [data.tagGroups]
-  )
+  }, [data.tags, groups, tagCounts, queryTags, tagIds])
 
   const [newColl, setNewColl] = useState('')
   const [addingColl, setAddingColl] = useState(false)
@@ -171,12 +192,84 @@ export default function Sidebar(): React.ReactElement {
     await refresh()
   }
 
-  const deleteCollection = async (id: string, name: string): Promise<void> => {
-    if (!window.confirm(`删除集合「${name}」？\n记录本身不会被删除，只是不再归属这个集合。`)) return
-    await window.pp.deleteCollection(id)
-    if (collectionId === id) setCollection(null)
-    await refresh()
-    toast('集合已删除', 'ok')
+  const [collMenu, setCollMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [targetMode, setTargetMode] = useState<'move' | 'merge' | null>(null)
+  const [targetSource, setTargetSource] = useState<string | null>(null)
+  const [targetPick, setTargetPick] = useState<string | null>(null)
+  const collMenuRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    if (!collMenu || !collMenuRef.current) return
+    const el = collMenuRef.current
+    const r = el.getBoundingClientRect()
+    el.style.left = `${Math.max(8, Math.min(window.innerWidth - r.width - 8, collMenu.x))}px`
+    el.style.top = `${Math.max(8, Math.min(window.innerHeight - r.height - 8, collMenu.y))}px`
+  }, [collMenu])
+
+  useEffect(() => {
+    if (!collMenu) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setCollMenu(null)
+    }
+    const onDown = (e: MouseEvent): void => {
+      if (collMenuRef.current && !collMenuRef.current.contains(e.target as Node)) setCollMenu(null)
+    }
+    document.addEventListener('keydown', onKey, true)
+    document.addEventListener('mousedown', onDown)
+    return () => {
+      document.removeEventListener('keydown', onKey, true)
+      document.removeEventListener('mousedown', onDown)
+    }
+  }, [collMenu])
+
+  const deleteCollection = (c: Collection): void => {
+    const count = data.entries.filter((e) => e.collectionIds.includes(c.id)).length
+    setCollMenu(null)
+    askConfirm({
+      title: '删除集合',
+      message: `确定删除集合「${c.name}」？\n其中 ${count} 条记录不会被删除，只会不再归属于这个集合。`,
+      confirmLabel: '删除集合',
+      danger: true,
+      onConfirm: async () => {
+        await window.pp.deleteCollection(c.id)
+        if (collectionId === c.id) setCollection(null)
+        await refresh()
+        toast(`已删除集合「${c.name}」`, 'ok')
+      }
+    })
+  }
+
+  const openTarget = (mode: 'move' | 'merge', source: Collection): void => {
+    setCollMenu(null)
+    setTargetMode(mode)
+    setTargetSource(source.id)
+    setTargetPick(null)
+  }
+
+  const targetSourceColl = data.collections.find((c) => c.id === targetSource)
+  const targetOther = data.collections.filter((c) => c.id !== targetSource)
+  const targetPickColl = data.collections.find((c) => c.id === targetPick)
+  const menuColl = data.collections.find((c) => c.id === collMenu?.id)
+
+  const runTarget = async (): Promise<void> => {
+    if (!targetMode || !targetSource || !targetPick) return
+    try {
+      if (targetMode === 'move') {
+        const r = await window.pp.moveCollectionContents(targetSource, targetPick)
+        if (collectionId === targetSource) setCollection(targetPick)
+        toast(`已把 ${r.moved} 条内容移动到「${r.target.name}」`, 'ok')
+      } else {
+        const r = await window.pp.mergeCollections([targetSource], targetPick)
+        if (collectionId === targetSource) setCollection(targetPick)
+        toast(`已把 ${r.moved} 条内容并入「${r.target.name}」，来源集合已删除`, 'ok')
+      }
+      setTargetMode(null)
+      setTargetSource(null)
+      setTargetPick(null)
+      await refresh()
+    } catch (e) {
+      toast((e as Error).message, 'err')
+    }
   }
 
   const hasFilter =
@@ -236,7 +329,7 @@ export default function Sidebar(): React.ReactElement {
             className={'nav-item' + (onlyFavorite ? ' on' : '')}
             onClick={() => toggleFavorite()}
           >
-            <Icon name="star" size={14} />
+            <Icon name="heart" size={14} />
             <span className="nav-label">收藏</span>
             <em>{data.entries.filter((e) => e.favorite).length}</em>
           </button>
@@ -320,15 +413,19 @@ export default function Sidebar(): React.ReactElement {
             <div className="sb-hint">还没有集合。集合像文件夹，但一条记录可以属于多个集合。</div>
           )}
           {data.collections.map((c) => {
-            const n = data.entries.filter((e) => e.collectionIds.includes(c.id)).length
+            const n = collCounts.get(c.id) ?? 0
             return (
               <div
                 key={c.id}
-                className={'nav-item' + (collectionId === c.id ? ' on' : '')}
+                data-coll={c.id}
+                className={
+                  'nav-item' + (collectionId === c.id ? ' on' : '') + (n === 0 && collectionId !== c.id ? ' dim' : '')
+                }
                 onClick={() => setCollection(collectionId === c.id ? null : c.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
-                  void renameCollection(c.id, c.name)
+                  e.stopPropagation()
+                  setCollMenu({ id: c.id, x: e.clientX, y: e.clientY })
                 }}
                 role="button"
                 tabIndex={0}
@@ -338,14 +435,16 @@ export default function Sidebar(): React.ReactElement {
                 <em>{n}</em>
                 <button
                   type="button"
-                  className="row-del"
-                  title="删除集合"
+                  className="row-more"
+                  title="集合菜单：重命名 / 移动 / 合并 / 删除"
+                  aria-label={`集合菜单：${c.name}`}
                   onClick={(e) => {
                     e.stopPropagation()
-                    void deleteCollection(c.id, c.name)
+                    const r = e.currentTarget.getBoundingClientRect()
+                    setCollMenu({ id: c.id, x: r.left, y: r.bottom + 4 })
                   }}
                 >
-                  <Icon name="close" size={11} strokeWidth={2.2} />
+                  <Icon name="dots" size={14} />
                 </button>
               </div>
             )
@@ -588,6 +687,128 @@ export default function Sidebar(): React.ReactElement {
           </button>
         )}
       </div>
+
+      {collMenu && menuColl && (
+        <div
+          className="ctx-menu coll-ctx"
+          ref={collMenuRef}
+          style={{ left: collMenu.x, top: collMenu.y }}
+          role="menu"
+          aria-label="集合菜单"
+        >
+          <div className="ctx-head" title={menuColl.name}>
+            集合：{menuColl.name}
+          </div>
+          <button
+            type="button"
+            className="ctx-item"
+            role="menuitem"
+            data-coll-cmd="rename"
+            onClick={() => {
+              setCollMenu(null)
+              void renameCollection(menuColl.id, menuColl.name)
+            }}
+          >
+            <Icon name="edit" size={13} /> 重命名
+          </button>
+          <button
+            type="button"
+            className="ctx-item"
+            role="menuitem"
+            data-coll-cmd="move"
+            onClick={() => openTarget('move', menuColl)}
+          >
+            <Icon name="folder" size={13} /> 将内容移动到…
+          </button>
+          <button
+            type="button"
+            className="ctx-item"
+            role="menuitem"
+            data-coll-cmd="merge"
+            onClick={() => openTarget('merge', menuColl)}
+          >
+            <Icon name="plus" size={13} /> 合并到另一个集合…
+          </button>
+          <div className="ctx-sep" />
+          <button
+            type="button"
+            className="ctx-item danger"
+            role="menuitem"
+            data-coll-cmd="delete"
+            onClick={() => deleteCollection(menuColl)}
+          >
+            <Icon name="trash" size={13} /> 删除集合…
+          </button>
+        </div>
+      )}
+
+      <Modal
+        open={!!targetMode && !!targetSourceColl}
+        onClose={() => {
+          setTargetMode(null)
+          setTargetSource(null)
+          setTargetPick(null)
+        }}
+        width={460}
+        label={targetMode === 'merge' ? '合并集合' : '移动集合内容'}
+      >
+        <div className="mini-modal-head">
+          <div className="mm-title">
+            {targetMode === 'merge' ? '合并到另一个集合' : '将内容移动到另一个集合'}
+          </div>
+          <div className="mm-sub">
+            {targetMode === 'merge'
+              ? '来源集合的条目会并入目标集合，来源集合本身会被删除。'
+              : '来源集合会保留，只是里面的条目会改到目标集合。'}
+          </div>
+        </div>
+        <div className="mini-modal-body">
+          <div className="target-list">
+            {targetOther.length === 0 && (
+              <div className="muted pad">没有其他集合可选，先新建一个。</div>
+            )}
+            {targetOther.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                className={'target-row' + (targetPick === c.id ? ' on' : '')}
+                onClick={() => setTargetPick(c.id)}
+              >
+                <span className="coll-dot" style={{ background: c.color }} />
+                <span className="ellipsis">{c.name}</span>
+                <em>{totalCollCounts.get(c.id) ?? 0} 条</em>
+                <Icon name={targetPick === c.id ? 'check' : 'chevronRight'} size={13} />
+              </button>
+            ))}
+          </div>
+          {targetMode === 'merge' && (
+            <div className="target-warn">
+              合并不可撤销。确认后「{targetSourceColl?.name}」会被删除。
+            </div>
+          )}
+        </div>
+        <div className="mini-modal-foot">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setTargetMode(null)
+              setTargetSource(null)
+              setTargetPick(null)
+            }}
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            className={'btn ' + (targetMode === 'merge' ? 'danger' : 'primary')}
+            disabled={!targetPickColl}
+            onClick={() => void runTarget()}
+          >
+            {targetMode === 'merge' ? '确认合并' : '确认移动'}
+          </button>
+        </div>
+      </Modal>
     </aside>
   )
 }

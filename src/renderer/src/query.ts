@@ -5,6 +5,7 @@
  *   tag:赛博朋克          tag:"电影感 夜景"
  *   model:即梦            model:"即梦 3.0"
  *   platform:即梦         collection:客户A
+ *   code:ox27gsk          风格码 / --sref / --profile 等 MJ 码
  *   rating:>=4            rating:4
  *   kind:image / video
  *   is:favorite / unrated / rated
@@ -25,6 +26,8 @@ export interface ParsedQuery {
   models: string[]
   platforms: string[]
   collections: string[]
+  /** 风格码 / MJ 码（code:ox27gsk） */
+  codes: string[]
   ratings: { op: RatingOp; value: number }[]
   kinds: QueryKind[]
   flags: QueryFlag[]
@@ -34,7 +37,7 @@ export interface ParsedQuery {
   errors: string[]
 }
 
-const TOKEN = /(tag|model|platform|collection|rating|kind|is|has|before|after):(?:"([^"]*)"|(\S+))/gi
+const TOKEN = /(tag|model|platform|collection|code|rating|kind|is|has|before|after):(?:"([^"]*)"|(\S+))/gi
 
 function normalizeValue(v: string): string {
   return v.trim().toLowerCase()
@@ -47,6 +50,7 @@ export function parseQuery(raw: string): ParsedQuery {
     models: [],
     platforms: [],
     collections: [],
+    codes: [],
     ratings: [],
     kinds: [],
     flags: [],
@@ -117,6 +121,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (key === 'model') out.models.push(value)
       else if (key === 'platform') out.platforms.push(value)
       else if (key === 'collection') out.collections.push(value)
+      else if (key === 'code') out.codes.push(value)
       return ' '
     })
     .replace(/\s+/g, ' ')

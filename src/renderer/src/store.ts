@@ -29,6 +29,24 @@ export interface Toast {
   kind: 'info' | 'ok' | 'err'
 }
 
+/** 鼠标旁的轻提示：用于复制等高频动作，不参与布局 */
+export interface CopyTip {
+  id: string
+  text: string
+  x: number
+  y: number
+  kind: 'ok' | 'info'
+}
+
+/** 应用内确认框；onConfirm 在用户点确认按钮后执行 */
+export interface ConfirmRequest {
+  title: string
+  message: string
+  confirmLabel?: string
+  danger?: boolean
+  onConfirm: () => void | Promise<void>
+}
+
 interface ImportUiState {
   active: boolean
   done: number
@@ -76,12 +94,15 @@ export interface StoreState {
   anchorId: string | null
   /** 键盘焦点：与 selectedIds 分开，J/K 只移动它，Space 才切换选中 */
   focusIndex: number | null
-  detailId: string | null
+  /** 大图查看器当前条目；null = 关闭 */
+  viewerId: string | null
   editorOpen: boolean
   draft: EntryDraft | null
   dupReport: DupReport | null
 
   toasts: Toast[]
+  tip: CopyTip | null
+  confirm: ConfirmRequest | null
   importing: ImportUiState
   update: UpdateStatus
   systemDark: boolean
@@ -127,7 +148,8 @@ export interface StoreState {
   moveFocus: (delta: number) => void
   toggleFocusSelection: () => void
   selectAllFiltered: () => void
-  openDetail: (id: string | null) => void
+  openViewer: (id: string | null) => void
+  closeViewer: () => void
 
   startCreate: (assetIds?: string[]) => void
   startEdit: (id: string) => void
@@ -158,6 +180,11 @@ export interface StoreState {
 
   toast: (text: string, kind?: Toast['kind']) => void
   dropToast: (id: string) => void
+  /** 鼠标旁轻提示；不传坐标时用最后一次指针位置 */
+  showTip: (text: string, x?: number, y?: number, kind?: CopyTip['kind']) => void
+  dropTip: (id?: string) => void
+  askConfirm: (req: ConfirmRequest) => void
+  closeConfirm: () => void
 }
 
 const EMPTY_LIB: LibraryData = {
@@ -194,6 +221,26 @@ const EMPTY_CFG: AppConfig = {
 
 function uid(): string {
   return Math.random().toString(36).slice(2, 10)
+}
+
+/* 鼠标旁轻提示需要最后指针位置；capture 阶段挂一次，不阻塞交互 */
+const lastPointer = { x: 0, y: 0 }
+if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'pointermove',
+    (e) => {
+      lastPointer.x = e.clientX
+      lastPointer.y = e.clientY
+    },
+    { passive: true }
+  )
+}
+function lastPointerPos(): { x: number; y: number } {
+  if (lastPointer.x || lastPointer.y) return { ...lastPointer }
+  return {
+    x: (window?.innerWidth ?? 1200) / 2,
+    y: (window?.innerHeight ?? 800) / 2
+  }
 }
 
 let thumbPersistTimer: ReturnType<typeof setTimeout> | null = null
@@ -239,12 +286,14 @@ export const useStore = create<StoreState>((set, get) => ({
   selectedIds: [],
   anchorId: null,
   focusIndex: null,
-  detailId: null,
+  viewerId: null,
   editorOpen: false,
   draft: null,
   dupReport: null,
 
   toasts: [],
+  tip: null,
+  confirm: null,
   importing: { active: false, done: 0, total: 0, current: '' },
   update: { state: 'idle' },
   systemDark: true,
@@ -309,18 +358,38 @@ export const useStore = create<StoreState>((set, get) => ({
   async refresh(snap) {
     const s = snap ?? ((await window.pp.getState()) as LibrarySnapshot)
     applyUiScaleVar(s.config.uiScale)
-    set((st) => ({
-      data: s.data,
-      root: s.root,
-      config: s.config,
-      version: s.version,
-      capturePort: s.capturePort,
-      sidebarCollapsed: s.config.sidebarCollapsed ?? st.sidebarCollapsed,
-      rightPanelCollapsed: s.config.rightPanelCollapsed ?? st.rightPanelCollapsed,
-      // 清理已不存在的选中项
-      selectedIds: st.selectedIds.filter((id) => s.data.entries.some((e) => e.id === id)),
-      detailId: st.detailId && s.data.entries.some((e) => e.id === st.detailId) ? st.detailId : null
-    }))
+    set((st) => {
+      const entryIds = new Set(s.data.entries.map((e) => e.id))
+      const tagIds = new Set(s.data.tags.map((t) => t.id))
+      const collIds = new Set(s.data.collections.map((c) => c.id))
+      const models = new Set(
+        (s.data.models ?? []).map((m) => m.name.trim().toLowerCase())
+      )
+      for (const e of s.data.entries) {
+        const name = (e.params?.model ?? '').trim().toLowerCase()
+        if (name) models.add(name)
+      }
+      const platforms = new Set(s.data.entries.map((e) => e.source?.platform ?? ''))
+      return {
+        data: s.data,
+        root: s.root,
+        config: s.config,
+        version: s.version,
+        capturePort: s.capturePort,
+        sidebarCollapsed: s.config.sidebarCollapsed ?? st.sidebarCollapsed,
+        rightPanelCollapsed: s.config.rightPanelCollapsed ?? st.rightPanelCollapsed,
+        // 清理已不存在的选中项 / 失效筛选 / 已删除的大图条目
+        selectedIds: st.selectedIds.filter((id) => entryIds.has(id)),
+        viewerId: st.viewerId && entryIds.has(st.viewerId) ? st.viewerId : null,
+        collectionId:
+          st.collectionId && !collIds.has(st.collectionId) ? null : st.collectionId,
+        tagIds: st.tagIds.filter((id) => tagIds.has(id)),
+        model:
+          st.model && !models.has(st.model.trim().toLowerCase()) ? null : st.model,
+        platform:
+          st.platform && !platforms.has(st.platform) ? null : st.platform
+      }
+    })
   },
 
   async applyConfig(patch) {
@@ -396,7 +465,7 @@ export const useStore = create<StoreState>((set, get) => ({
       platform: null,
       model: null,
       selectedIds: [],
-      detailId: null,
+      viewerId: null,
       anchorId: null,
       focusIndex: null
     })
@@ -447,7 +516,7 @@ export const useStore = create<StoreState>((set, get) => ({
       similarLabel: '',
       similarIds: [],
       selectedIds: [],
-      detailId: null,
+      viewerId: null,
       anchorId: null,
       focusIndex: null
     })
@@ -497,7 +566,7 @@ export const useStore = create<StoreState>((set, get) => ({
       return
     }
     const wasCollapsed = get().rightPanelCollapsed
-    set({ panel: p, detailId: null, rightPanelCollapsed: false })
+    set({ panel: p, viewerId: null, rightPanelCollapsed: false })
     if (wasCollapsed) void window.pp.patchConfig({ rightPanelCollapsed: false })
   },
   setBatchTagModal: (m) => set({ batchTagModal: m }),
@@ -513,19 +582,18 @@ export const useStore = create<StoreState>((set, get) => ({
   toggleSidebar: () => get().setSidebarCollapsed(!get().sidebarCollapsed),
   toggleRightPanel: () => {
     const s = get()
-    const hasRight = !!s.detailId || s.panel === 'dups' || s.panel === 'tags' || s.panel === 'models'
-    if (hasRight) {
+    const hasPanel = s.panel === 'dups' || s.panel === 'tags' || s.panel === 'models'
+    if (hasPanel) {
       get().setRightPanelCollapsed(!s.rightPanelCollapsed)
       return
     }
-    // 右栏没内容：直接打开当前焦点/选中项的详情
+    // 右栏只承载工具面板；没有工具面板时，这个快捷键用来打开当前项的大图
     const list = selectEntries(s)
     const id = s.focusIndex != null ? list[s.focusIndex]?.id : s.selectedIds[0]
     if (id) {
-      set({ detailId: id, panel: 'none', rightPanelCollapsed: false })
-      if (s.rightPanelCollapsed) void window.pp.patchConfig({ rightPanelCollapsed: false })
+      get().openViewer(id)
     } else {
-      s.toast('先选中一条记录，再展开右栏', 'info')
+      s.toast('先选中一条记录，或把鼠标移到卡片上', 'info')
     }
   },
 
@@ -594,15 +662,15 @@ export const useStore = create<StoreState>((set, get) => ({
     const ids = selectEntries(get()).map((e) => e.id)
     set({ selectedIds: ids, anchorId: ids[0] ?? null })
   },
-  openDetail: (id) => {
+  openViewer: (id) => {
     if (!id) {
-      set({ detailId: null })
+      set({ viewerId: null })
       return
     }
-    const wasCollapsed = get().rightPanelCollapsed
-    set({ detailId: id, panel: 'none', rightPanelCollapsed: false })
-    if (wasCollapsed) void window.pp.patchConfig({ rightPanelCollapsed: false })
+    if (!get().data.entries.some((e) => e.id === id)) return
+    set({ viewerId: id, panel: 'none', batchTagModal: 'none' })
   },
+  closeViewer: () => set({ viewerId: null }),
 
   startCreate: (assetIds) =>
     set({
@@ -627,7 +695,7 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!e) return
     set({
       editorOpen: true,
-      detailId: null,
+      viewerId: null,
       draft: {
         id: e.id,
         title: e.title,
@@ -678,7 +746,7 @@ export const useStore = create<StoreState>((set, get) => ({
       await window.pp.deleteEntries(ids)
       set((s) => ({
         selectedIds: s.selectedIds.filter((x) => !ids.includes(x)),
-        detailId: ids.includes(s.detailId ?? '') ? null : s.detailId
+        viewerId: ids.includes(s.viewerId ?? '') ? null : s.viewerId
       }))
       await get().refresh()
       get().toast(`已删除 ${ids.length} 条记录`, 'ok')
@@ -814,7 +882,7 @@ export const useStore = create<StoreState>((set, get) => ({
           root: r.snapshot.root,
           config: r.snapshot.config,
           selectedIds: [],
-          detailId: null
+          viewerId: null
         })
         get().toast(`已作为新库打开，导入 ${r.result.entries} 条`, 'ok')
         applyUiScaleVar(r.snapshot.config.uiScale)
@@ -853,7 +921,31 @@ export const useStore = create<StoreState>((set, get) => ({
     set((s) => ({ toasts: [...s.toasts, { id, text, kind }] }))
     setTimeout(() => get().dropToast(id), kind === 'err' ? 5200 : 2600)
   },
-  dropToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))
+  dropToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+
+  showTip: (text, x, y, kind = 'ok') => {
+    const id = uid()
+    const pos = lastPointerPos()
+    set({
+      tip: {
+        id,
+        text,
+        x: typeof x === 'number' ? x : pos.x,
+        y: typeof y === 'number' ? y : pos.y,
+        kind
+      }
+    })
+    setTimeout(() => get().dropTip(id), 1500)
+  },
+  dropTip: (id) => {
+    if (!id) {
+      set({ tip: null })
+      return
+    }
+    set((s) => (s.tip?.id === id ? { tip: null } : {}))
+  },
+  askConfirm: (req) => set({ confirm: req }),
+  closeConfirm: () => set({ confirm: null })
 }))
 
 export function applyTheme(mode: AppConfig['theme'], systemDark: boolean): void {
@@ -888,8 +980,14 @@ export function collMap(data: LibraryData): Map<string, Collection> {
   return m
 }
 
-/** 当前筛选与排序后的条目列表 —— 单一真相，侧栏计数与画廊共用 */
-export function selectEntries(s: StoreState): PromptEntry[] {
+/** 当前筛选与排序后的条目列表 —— 单一真相，侧栏计数与画廊共用。
+ *  ignoreTags / ignoreCollection 只用于侧栏计数：算某个维度时不受该维度自身筛选影响。 */
+export interface SelectEntriesOptions {
+  ignoreTags?: boolean
+  ignoreCollection?: boolean
+}
+
+export function selectEntries(s: StoreState, opts: SelectEntriesOptions = {}): PromptEntry[] {
   const { data, q, collectionId, tagIds, tagMode, ratingMin, onlyFavorite, kind, platform, model, sort } = s
   const assets = assetMap(data)
   const tags = tagMap(data)
@@ -908,7 +1006,7 @@ export function selectEntries(s: StoreState): PromptEntry[] {
   const out: PromptEntry[] = []
   for (const e of data.entries) {
     if (s.similarTo && !s.similarIds.includes(e.id)) continue
-    if (collectionId && !e.collectionIds.includes(collectionId)) continue
+    if (!opts.ignoreCollection && collectionId && !e.collectionIds.includes(collectionId)) continue
     if (onlyFavorite && !e.favorite) continue
     if (ratingMin > 0 && e.rating < ratingMin) continue
     if (platform && (e.source?.platform ?? '') !== platform) continue
@@ -922,7 +1020,7 @@ export function selectEntries(s: StoreState): PromptEntry[] {
       if (!has) continue
     }
 
-    if (tagIds.length) {
+    if (!opts.ignoreTags && tagIds.length) {
       if (tagMode === 'and') {
         if (!tagIds.every((t) => e.tagIds.includes(t))) continue
       } else if (!tagIds.some((t) => e.tagIds.includes(t))) continue
@@ -932,8 +1030,22 @@ export function selectEntries(s: StoreState): PromptEntry[] {
     const collNames = e.collectionIds.map((id) => colls.get(id)?.name ?? '').filter(Boolean)
     const entryModel = (e.params?.model ?? '').toLowerCase()
     const entryPlatform = (e.source?.platform ?? '').toLowerCase()
+    const extra = (e.params?.extra ?? {}) as Record<string, string>
+    const codeHay = [
+      extra['mjCodes'],
+      extra['mjCodeparam'],
+      extra['sref'],
+      extra['profile'],
+      extra['styleRef'],
+      extra['mjVibe']
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    const mode = (extra['mjCodeMode'] ?? '').toLowerCase()
 
     if (
+      !opts.ignoreTags &&
       parsed.tags.length &&
       !parsed.tags.every((needle) =>
         names.some((name) => name.toLowerCase().includes(needle.toLowerCase()))
@@ -955,6 +1067,11 @@ export function selectEntries(s: StoreState): PromptEntry[] {
       !parsed.collections.every((needle) =>
         collNames.some((name) => name.toLowerCase().includes(needle.toLowerCase()))
       )
+    )
+      continue
+    if (
+      parsed.codes.length &&
+      !parsed.codes.every((needle) => codeHay.includes(needle.toLowerCase()))
     )
       continue
     if (!parsed.ratings.every((r) => ratingMatch(e.rating, r.op, r.value))) continue
@@ -983,8 +1100,14 @@ export function selectEntries(s: StoreState): PromptEntry[] {
         e.params?.model ?? '',
         e.params?.sampler ?? '',
         e.params?.seed ?? '',
+        e.params?.reference ?? '',
         e.source?.platform ?? '',
-        e.source?.originalName ?? ''
+        e.source?.originalName ?? '',
+        e.source?.url ?? '',
+        // MJ / 风格码等自由字段：让 8 位风格码、--sref、--profile 直接可搜
+        codeHay,
+        mode === 'solo' ? '独码' : mode === 'multi' ? '混码' : '',
+        Object.values(extra).join(' ')
       ]
         .join(' \n ')
         .toLowerCase()

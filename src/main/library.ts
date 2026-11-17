@@ -4,6 +4,8 @@ import crypto from 'node:crypto'
 import type {
   Asset,
   Collection,
+  CollectionMergeResult,
+  CollectionMoveResult,
   LibraryData,
   ModelKind,
   ModelPreset,
@@ -678,6 +680,62 @@ export class Library {
     this.data.collections = this.data.collections.filter((c) => c.id !== id)
     for (const e of this.data.entries) e.collectionIds = e.collectionIds.filter((c) => c !== id)
     this.touch()
+  }
+
+  /** 把来源集合里的条目改到目标集合；来源集合保留（可以为空） */
+  moveCollectionContents(fromId: string, toId: string): CollectionMoveResult {
+    if (fromId === toId) throw new Error('来源集合和目标集合相同')
+    const from = this.data.collections.find((c) => c.id === fromId)
+    const target = this.data.collections.find((c) => c.id === toId)
+    if (!from) throw new Error('来源集合不存在')
+    if (!target) throw new Error('目标集合不存在')
+
+    let moved = 0
+    const now = nowIso()
+    for (const e of this.data.entries) {
+      if (!e.collectionIds.includes(fromId)) continue
+      const next = e.collectionIds.filter((id) => id !== fromId)
+      if (!next.includes(toId)) next.push(toId)
+      e.collectionIds = next
+      e.updatedAt = now
+      moved++
+    }
+    this.touch()
+    return { moved, target }
+  }
+
+  /** 合并集合：把来源集合的条目并入目标，然后删除来源集合 */
+  mergeCollections(fromIds: string[], toId: string): CollectionMergeResult {
+    const target = this.data.collections.find((c) => c.id === toId)
+    if (!target) throw new Error('目标集合不存在')
+    const from = new Set(fromIds.filter((id) => id && id !== toId))
+    if (!from.size) throw new Error('没有要合并的集合')
+    for (const id of from) {
+      if (!this.data.collections.some((c) => c.id === id)) {
+        throw new Error('部分集合不存在，可能已被删除')
+      }
+    }
+
+    let moved = 0
+    const now = nowIso()
+    for (const e of this.data.entries) {
+      if (!e.collectionIds.some((id) => from.has(id))) continue
+      const next: string[] = []
+      const seen = new Set<string>()
+      for (const id of e.collectionIds) {
+        const mapped = from.has(id) ? toId : id
+        if (seen.has(mapped)) continue
+        seen.add(mapped)
+        next.push(mapped)
+      }
+      e.collectionIds = next
+      e.updatedAt = now
+      moved++
+    }
+
+    this.data.collections = this.data.collections.filter((c) => !from.has(c.id))
+    this.touch()
+    return { moved, merged: from.size, target }
   }
 
   /* ── 保存视图 ── */

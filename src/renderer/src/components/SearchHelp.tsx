@@ -8,6 +8,8 @@ const ROWS: [string, string][] = [
   ['model:"即梦 3.0"', '精确到版本'],
   ['platform:即梦', '来源平台'],
   ['collection:客户A', '所属集合'],
+  ['code:ox27gsk', 'MJ 风格码 / --sref / --profile'],
+  ['code:"https://s.mj.run/xxx"', '完整风格码串（带空格时用引号）'],
   ['rating:>=4', '评分大于等于 4'],
   ['rating:4', '评分正好 4'],
   ['kind:video', '只要视频（也支持 image）'],
@@ -42,6 +44,8 @@ export default function SearchHelp({
         </div>
         <div className="set-note" style={{ paddingTop: 12 }}>
           例：<code>tag:赛博朋克 model:即梦 rating:&gt;=4 is:favorite</code>
+          <br />
+          风格码：<code>code:ox27gsk</code>；普通关键词也会搜 MJ 参数字段
         </div>
       </div>
     </Modal>

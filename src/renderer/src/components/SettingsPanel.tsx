@@ -512,6 +512,28 @@ export default function SettingsPanel(): React.ReactElement {
               <span>数据目录</span>
               <b className="mono">{info?.userData ?? '—'}</b>
             </div>
+            <div className="about-links">
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() =>
+                  void window.pp.openExternal('https://github.com/JiuZhang-9/promptpair')
+                }
+              >
+                <Icon name="external" size={12} />
+                GitHub 项目主页
+              </button>
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() =>
+                  void window.pp.openExternal('https://github.com/JiuZhang-9/promptpair/issues')
+                }
+              >
+                <Icon name="help" size={12} />
+                问题反馈
+              </button>
+            </div>
           </div>
         </div>
         </div>

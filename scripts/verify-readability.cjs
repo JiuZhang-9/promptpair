@@ -65,7 +65,7 @@ app.whenReady().then(async () => {
       const title = card.querySelector('.card-title')
       const prompt = card.querySelector('.card-prompt')
       const info = card.querySelector('.card-info')
-      const tag = card.querySelector('button.mini-tag')
+      const tag = card.querySelector('button.mini-tag:not(.coll)')
       return {
         uiScale: cfg.uiScale,
         title: getComputedStyle(title).fontSize,
@@ -115,7 +115,7 @@ app.whenReady().then(async () => {
     assert(!(await js(win, `!!document.querySelector('.right-dock.open .detail')`)), '收藏不打开详情')
 
     const beforeCount = await js(win, `document.querySelectorAll('.card').length`)
-    await js(win, `document.querySelector('.card button.mini-tag')?.click()`)
+    await js(win, `document.querySelector('.card button.mini-tag:not(.coll)')?.click()`)
     await sleep(350)
     const tagState = await js(win, `(() => ({
       count: document.querySelectorAll('.card').length,
@@ -126,22 +126,26 @@ app.whenReady().then(async () => {
     assert(tagState.count < beforeCount, '点标签后结果变少', tagState.count)
     assert(tagState.active >= 1, '左栏标签同步选中', tagState.active)
     assert(tagState.detail === false, '点标签不打开详情')
-    await js(win, `document.querySelector('.card button.mini-tag')?.click()`)
+    await js(win, `document.querySelector('.card button.mini-tag:not(.coll)')?.click()`)
     await sleep(250)
 
-    console.log('\n→ 点卡片打开详情')
+    console.log('\n→ 单击选中 / 双击打开大图')
     const open = await js(win, `(() => {
       const c = document.querySelector('.card')
       c.click()
       return new Promise(resolve => setTimeout(() => resolve({
-        open: !!document.querySelector('.right-dock.open .detail'),
+        viewer: !!document.querySelector('.viewer'),
+        dock: !!document.querySelector('.right-dock.open .detail'),
         selected: c.classList.contains('sel')
-      }), 60))
+      }), 80))
     })()`)
-    assert(open.open === true && open.selected === true, '点卡片打开详情并选中', open)
+    assert(open.viewer === false && open.dock === false && open.selected === true, '单击只选中，不弹右栏', open)
+    await js(win, `document.querySelector('.card').dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))`)
+    await sleep(350)
+    assert(await js(win, `!!document.querySelector('.viewer .v-info')`), '双击打开大图查看')
     await shot(win, '21-readability-detail')
-    await js(win, `document.querySelector('.right-dock .icon-btn[title^="关闭"]')?.click()`)
-    await sleep(120)
+    await js(win, `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+    await sleep(220)
 
     console.log('\n→ 90–110% 界面比例')
     await js(win, `window.pp.patchConfig({ uiScale: 1 })`)

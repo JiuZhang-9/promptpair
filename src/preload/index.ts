@@ -48,6 +48,10 @@ const api = {
     ipcRenderer.invoke('collection:create', name, color),
   updateCollection: (id: string, patch: unknown) => ipcRenderer.invoke('collection:update', id, patch),
   deleteCollection: (id: string) => ipcRenderer.invoke('collection:delete', id),
+  moveCollectionContents: (fromId: string, toId: string) =>
+    ipcRenderer.invoke('collection:move', fromId, toId),
+  mergeCollections: (fromIds: string[], toId: string) =>
+    ipcRenderer.invoke('collection:merge', fromIds, toId),
 
   /* 导入 */
   pickFiles: () => ipcRenderer.invoke('import:pickFiles') as Promise<string[]>,
@@ -58,6 +62,8 @@ const api = {
   addAssets: (paths: string[]) => ipcRenderer.invoke('asset:add', paths),
   addFromClipboard: () => ipcRenderer.invoke('asset:fromClipboard'),
   revealAsset: (assetId: string) => ipcRenderer.invoke('asset:reveal', assetId),
+  saveAssetAs: (assetId: string, suggestedName?: string) =>
+    ipcRenderer.invoke('asset:saveAs', assetId, suggestedName) as Promise<string | null>,
   repairAssets: () => ipcRenderer.invoke('asset:repairAll') as Promise<{ fixed: number }>,
 
   /* 重复检测 */

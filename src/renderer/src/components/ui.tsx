@@ -13,6 +13,7 @@ const PATHS: Record<string, string> = {
   image: 'M3 5h18v14H3zM3 15l5-5 4 4 3-3 6 6',
   video: 'M15 10l6-4v12l-6-4Zm-12-5h12v14H3z',
   star: 'M12 3l2.7 5.9 6.3.7-4.7 4.3 1.3 6.1L12 16.9 6.4 20l1.3-6.1L3 9.6l6.3-.7L12 3Z',
+  heart: 'M12 20s-7-4.5-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.5-9 9-9 9Z',
   trash: 'M4 7h16M9 7V5h6v2m-8 0 1 13h8l1-13',
   edit: 'M4 20h4l10-10-4-4L4 16v4Zm12-14 2-2 4 4-2 2-4-4Z',
   chevronDown: 'M6 9l6 6 6-6',

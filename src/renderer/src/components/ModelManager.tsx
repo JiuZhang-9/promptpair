@@ -20,8 +20,7 @@ interface Suggestion {
  * 模型词表管理：按使用数排序、重命名（可选同步历史）、合并疑似重复、删除、恢复默认。
  * 词表存在 library.json 里，随库搬迁；条目上的 params.model 仍是字符串快照。
  */
-export default function ModelManager(): React.ReactElement {
-  const panel = useStore((s) => s.panel)
+function ModelManagerBody(): React.ReactElement {
   const setPanel = useStore((s) => s.setPanel)
   const data = useStore((s) => s.data)
   const refresh = useStore((s) => s.refresh)
@@ -50,13 +49,14 @@ export default function ModelManager(): React.ReactElement {
   /** 条目里出现、但词表里没有的模型名（老库散装值） */
   const unlisted = useMemo(() => {
     const known = new Set(models.map((m) => normalizeName(m.name)))
+    const am = new Map(data.assets.map((a) => [a.id, a]))
     const out = new Map<string, { name: string; count: number; kind: ModelKind }>()
     for (const e of data.entries) {
       const raw = (e.params?.model ?? '').trim()
       if (!raw) continue
       const key = normalizeName(raw)
       if (known.has(key)) continue
-      const kinds = e.assetIds.map((id) => data.assets.find((a) => a.id === id)?.kind)
+      const kinds = e.assetIds.map((id) => am.get(id)?.kind)
       const kind: ModelKind = kinds.includes('video') ? 'video' : kinds.includes('image') ? 'image' : 'other'
       const cur = out.get(key)
       if (cur) cur.count++
@@ -112,8 +112,6 @@ export default function ModelManager(): React.ReactElement {
   useEffect(() => {
     if (adding) setTimeout(() => addRef.current?.focus(), 40)
   }, [adding])
-
-  if (panel !== 'models') return <></>
 
   const startRename = (m: ModelPreset): void => {
     renameDone.current = false
@@ -429,4 +427,11 @@ export default function ModelManager(): React.ReactElement {
       </div>
     </aside>
   )
+}
+
+/** 外壳只订阅 panel；面板没打开时不挂载 Body，避免评分时无谓重算。 */
+export default function ModelManager(): React.ReactElement {
+  const panel = useStore((s) => s.panel)
+  if (panel !== 'models') return <></>
+  return <ModelManagerBody />
 }

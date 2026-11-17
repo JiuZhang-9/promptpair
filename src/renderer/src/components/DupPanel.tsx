@@ -13,7 +13,7 @@ export default function DupPanel(): React.ReactElement {
   const refresh = useStore((s) => s.refresh)
   const toast = useStore((s) => s.toast)
 
-  const assets = useMemo(() => assetMap(data), [data])
+  const assets = useMemo(() => assetMap(data), [data.assets])
 
   const resolve = async (keep: string, rest: string[]): Promise<void> => {
     if (!rest.length) return

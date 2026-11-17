@@ -197,6 +197,33 @@ const DEMO = [
     params: { model: '可灵 1.6', width: 1920, height: 1080, seed: '77123' },
     platform: '可灵',
     assets: 2
+  },
+  {
+    title: '中式超现实 · 借景抒怀',
+    positive:
+      'extreme wide establishing shot, surreal Song dynasty lotus pond, monumental lotus leaves towering like enormous canopies, a tiny wooden sampan drifts through center, cinematic haze, pale celadon palette',
+    negative: '',
+    tags: ['东方', '电影感', '留白'],
+    coll: '视觉实验',
+    params: {
+      model: 'Midjourney',
+      width: 1024,
+      height: 1536,
+      extra: {
+        aspect: '2:3',
+        version: '8.2',
+        chaos: '5',
+        profile: 'ox27gsk',
+        sref: '613512513',
+        mjCodes: '--sref 613512513 --profile ox27gsk',
+        mjCodeparam: '--chaos 5 --ar 2:3 --v 8.2 --sref 613512513 --profile ox27gsk',
+        mjCodeMode: 'multi',
+        mjCodeCount: '2',
+        mjReuse: '3'
+      }
+    },
+    platform: 'Midjourney',
+    assets: 2
   }
 ]
 

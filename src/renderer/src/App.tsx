@@ -4,7 +4,7 @@ import { selectEntries, useStore } from './store'
 import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
 import Gallery from './components/Gallery'
-import DetailPanel from './components/DetailPanel'
+import Viewer from './components/Viewer'
 import EntryEditor from './components/EntryEditor'
 import BatchBar from './components/BatchBar'
 import DupPanel from './components/DupPanel'
@@ -12,7 +12,8 @@ import TagManager from './components/TagManager'
 import ModelManager from './components/ModelManager'
 import SettingsPanel from './components/SettingsPanel'
 import ShortcutsHelp from './components/ShortcutsHelp'
-import { Icon, copyText } from './components/ui'
+import { Icon, Modal, copyText } from './components/ui'
+import { copyVariants } from './copyVariants'
 
 function allTextForEntry(entry: PromptEntry): string {
   const rows: [string, string][] = []
@@ -47,6 +48,66 @@ function Toasts(): React.ReactElement {
         </div>
       ))}
     </div>
+  )
+}
+
+function CopyTip(): React.ReactElement | null {
+  const tip = useStore((s) => s.tip)
+  if (!tip) return null
+  const left = Math.max(8, Math.min((window.innerWidth || 1200) - 260, tip.x + 14))
+  const top = Math.max(8, Math.min((window.innerHeight || 800) - 48, tip.y - 38))
+  return (
+    <div className={'copy-tip ' + tip.kind} style={{ left, top }} role="status" aria-live="polite">
+      <Icon name="check" size={13} strokeWidth={2.4} />
+      <span>{tip.text}</span>
+    </div>
+  )
+}
+
+function ConfirmHost(): React.ReactElement | null {
+  const confirm = useStore((s) => s.confirm)
+  const closeConfirm = useStore((s) => s.closeConfirm)
+  const toast = useStore((s) => s.toast)
+  const [busy, setBusy] = React.useState(false)
+
+  React.useEffect(() => {
+    setBusy(false)
+  }, [confirm])
+
+  if (!confirm) return null
+  const run = async (): Promise<void> => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await confirm.onConfirm()
+      closeConfirm()
+    } catch (e) {
+      toast('操作失败：' + (e as Error).message, 'err')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal open onClose={busy ? () => undefined : closeConfirm} width={430} label={confirm.title}>
+      <div className="confirm-box">
+        <div className="confirm-title">{confirm.title}</div>
+        <div className="confirm-msg">{confirm.message}</div>
+        <div className="confirm-foot">
+          <button type="button" className="btn" disabled={busy} onClick={closeConfirm}>
+            取消
+          </button>
+          <button
+            type="button"
+            className={'btn ' + (confirm.danger ? 'danger' : 'primary')}
+            disabled={busy}
+            onClick={() => void run()}
+            data-confirm-ok
+          >
+            {busy ? '处理中…' : confirm.confirmLabel || '确认'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -85,8 +146,7 @@ export default function App(): React.ReactElement {
   const removeEntries = useStore((s) => s.removeEntries)
   const startCreate = useStore((s) => s.startCreate)
   const startEdit = useStore((s) => s.startEdit)
-  const detailId = useStore((s) => s.detailId)
-  const openDetail = useStore((s) => s.openDetail)
+  const viewerId = useStore((s) => s.viewerId)
   const editorOpen = useStore((s) => s.editorOpen)
   const batchTagModal = useStore((s) => s.batchTagModal)
   const setBatchTagModal = useStore((s) => s.setBatchTagModal)
@@ -104,6 +164,7 @@ export default function App(): React.ReactElement {
   const scanDups = useStore((s) => s.scanDups)
   const toggleFavoriteFilter = useStore((s) => s.toggleFavorite)
   const toast = useStore((s) => s.toast)
+  const showTip = useStore((s) => s.showTip)
   const panel = useStore((s) => s.panel)
   const sidebarCollapsed = useStore((s) => s.sidebarCollapsed)
   const rightPanelCollapsed = useStore((s) => s.rightPanelCollapsed)
@@ -119,6 +180,8 @@ export default function App(): React.ReactElement {
       const t = e.target as HTMLElement
       const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
       if (typing) return
+      // 大图查看器有自己的键位（Esc / 方向键 / 缩放），不让底层快捷键穿透
+      if (document.querySelector('.viewer')) return
 
       const mod = e.ctrlKey || e.metaKey
 
@@ -148,8 +211,22 @@ export default function App(): React.ReactElement {
       if (document.querySelector('.overlay')) return
 
       if (e.key === 'Escape') {
-        if (detailId) openDetail(null)
-        else if (selectedIds.length) clearSelection()
+        if (selectedIds.length) clearSelection()
+        return
+      }
+
+      // 回车打开当前焦点 / 选中项的大图（焦点落在按钮上时让按钮自己处理）
+      if (e.key === 'Enter') {
+        const el = e.target as HTMLElement
+        if (el.closest('button, a, input, textarea, [contenteditable="true"]')) return
+        const state = useStore.getState()
+        const list = selectEntries(state)
+        const id =
+          state.focusIndex != null ? list[state.focusIndex]?.id : state.selectedIds[0]
+        if (id) {
+          e.preventDefault()
+          state.openViewer(id)
+        }
         return
       }
 
@@ -191,7 +268,7 @@ export default function App(): React.ReactElement {
         const targets = state.data.entries.filter((x) => ids.includes(x.id))
         if (targets.length) {
           void copyText(targets.map(allTextForEntry).join('\n\n---\n\n'))
-            .then(() => toast('已复制全部内容', 'ok'))
+            .then(() => showTip('已复制全部内容'))
             .catch(() => toast('复制失败，请手动选中文本', 'err'))
         }
         return
@@ -249,8 +326,8 @@ export default function App(): React.ReactElement {
             : list.find((x) => x.id === state.selectedIds[0])
         if (target?.positive) {
           e.preventDefault()
-          void copyText(target.positive)
-            .then(() => toast('已复制提示词', 'ok'))
+          void copyText(copyVariants(target)[0].text)
+            .then(() => showTip('已复制提示词'))
             .catch(() => toast('复制失败，请手动选中文本', 'err'))
         }
         return
@@ -370,13 +447,12 @@ export default function App(): React.ReactElement {
     return () => document.removeEventListener('keydown', onKey)
   }, [
     selectedIds,
-    detailId,
+    viewerId,
     editorOpen,
     clearSelection,
     removeEntries,
     startCreate,
     startEdit,
-    openDetail,
     batchTagModal,
     setBatchTagModal,
     shortcutsOpen,
@@ -393,6 +469,7 @@ export default function App(): React.ReactElement {
     scanDups,
     toggleFavoriteFilter,
     toast,
+    showTip,
     toggleSidebar,
     toggleRightPanel
   ])
@@ -422,7 +499,7 @@ export default function App(): React.ReactElement {
     )
   }
 
-  const rightOpen = !!detailId || panel === 'dups' || panel === 'tags' || panel === 'models'
+  const rightOpen = panel === 'dups' || panel === 'tags' || panel === 'models'
 
   return (
     <div className="app">
@@ -437,7 +514,6 @@ export default function App(): React.ReactElement {
             (rightPanelCollapsed ? ' collapsed' : '')
           }
         >
-          <DetailPanel />
           <DupPanel />
           <TagManager />
           <ModelManager />
@@ -447,7 +523,10 @@ export default function App(): React.ReactElement {
       <EntryEditor />
       <SettingsPanel />
       <ShortcutsHelp />
+      <Viewer />
       <Toasts />
+      <CopyTip />
+      <ConfirmHost />
       <ImportOverlay />
     </div>
   )

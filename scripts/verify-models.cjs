@@ -87,24 +87,24 @@ app.whenReady().then(async () => {
     const seedCount = st.data.models?.length ?? 0
     assert(seedCount >= 10, '新库自带默认模型词表', seedCount)
     assert(
-      st.data.models.some((m) => m.name === 'Seedream' && m.kind === 'video'),
-      '默认词表含「Seedream」（视频）'
+      st.data.models.some((m) => m.name === 'Seedream' && m.kind === 'image'),
+      '默认词表含「Seedream」（图片）'
     )
 
     console.log('\n→ 新建与查重…')
     const main = st.data.models.find((m) => m.name === 'Seedream')
     assert(!!main?.id, '默认词表里已有「Seedream」', main)
-    const dup = await js(`window.pp.createModel('Seedream 3.0', 'video')`)
+    const dup = await js(`window.pp.createModel('Seedream 3.0', 'image')`)
     assert(!!dup.id && dup.name === 'Seedream 3.0', '「Seedream 3.0」可作为近似写法存在（待治理）', dup)
     const dupErr = await js(
-      `window.pp.createModel('Seedream', 'video').then(() => '').catch(e => String(e))`
+      `window.pp.createModel('Seedream', 'image').then(() => '').catch(e => String(e))`
     )
     assert(/已存在|已在词表/.test(dupErr), '同名（去空格后相同）被拒绝', dupErr)
 
     console.log('\n→ 英文名称与版本判重…')
     const stable = await js(`window.pp.createModel('stable-test', 'image')`)
     assert(stable.name === 'stable-test', '英文 s 开头名称保留首字符', stable.name)
-    const v4 = await js(`window.pp.createModel('Seedream 4.0', 'video')`)
+    const v4 = await js(`window.pp.createModel('Seedream 4.0', 'image')`)
     assert(v4.name === 'Seedream 4.0', '新建Seedream 4.0')
     // createModel 走的是主进程 IPC，重载后 store 才能拿到新词表
     win.webContents.reload()
@@ -194,7 +194,8 @@ app.whenReady().then(async () => {
     await js(`
       (() => {
         const card = document.querySelector('.card')
-        card?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+        card?.click()
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', bubbles: true, cancelable: true }))
       })()
     `)
     await sleep(600)
@@ -211,7 +212,7 @@ app.whenReady().then(async () => {
     await sleep(300)
     const menuItems = await js(`document.querySelectorAll('.modelpicker .tp-menu .tp-item').length`)
     assert(menuItems > 0, '输入「Se」后下拉出现候选', menuItems)
-    await js(`document.querySelector('.modelpicker .tp-menu .tp-item')?.click()`)
+    await js(`[...document.querySelectorAll('.modelpicker .tp-menu .tp-item')].find(x => x.textContent.includes('Seedream 3.1'))?.click()`)
     await sleep(200)
     const picked = await js(`document.querySelector('.modelpicker input').value`)
     assert(picked === 'Seedream 3.1', '点选候选后填入模型名', picked)

@@ -525,7 +525,11 @@ export default function TopBar(): React.ReactElement {
           <button
             type="button"
             className={'icon-btn' + (rightPanelCollapsed ? ' on' : '')}
-            title={rightPanelCollapsed ? '展开右栏 (Ctrl+Shift+B)' : '收起右栏 (Ctrl+Shift+B)'}
+            title={
+              rightPanelCollapsed
+                ? '展开右侧工具面板 / 打开大图 (Ctrl+Shift+B)'
+                : '收起右侧工具面板 (Ctrl+Shift+B)'
+            }
             onClick={toggleRightPanel}
           >
             <Icon name="panelRight" size={16} />
@@ -550,7 +554,7 @@ export default function TopBar(): React.ReactElement {
           <input
             ref={searchRef}
             value={q}
-            placeholder="搜索 / tag:标签 / model:模型 / rating:>=4（Ctrl+F）"
+            placeholder="搜索 / tag:标签 / code:风格码 / model:模型 / rating:>=4（Ctrl+F）"
             onChange={(e) => setQ(e.target.value)}
             onFocus={() => setSearchFocus(true)}
             onBlur={() => setSearchFocus(false)}

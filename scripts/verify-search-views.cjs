@@ -153,10 +153,10 @@ app.whenReady().then(async () => {
     assert(!!dup.id, '创建同资产副本')
     win.webContents.reload()
     await sleep(2400)
-    await js(`document.querySelector('.card[data-id="${original.id}"]')?.click()`)
-    await sleep(400)
+    await js(`document.querySelector('.card[data-id="${original.id}"]')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))`)
+    await sleep(500)
     const similarBtn = await js(`(() => {
-      const b = document.querySelector('.right-dock [title="找相似图"]')
+      const b = document.querySelector('.viewer [title="找相似图"]')
       if (b) b.click()
       return !!b
     })()`)
@@ -164,12 +164,12 @@ app.whenReady().then(async () => {
     const sim = await js(`(() => ({
       chip: !!document.querySelector('.sim-chip'),
       cards: document.querySelectorAll('.card').length,
-      detail: !!document.querySelector('.right-dock.open .detail')
+      viewer: !!document.querySelector('.viewer')
     }))()`)
     console.log('  ', sim)
-    assert(similarBtn && sim.chip, '详情「找相似」显示相似图筛选')
+    assert(similarBtn && sim.chip, '大图「找相似」显示相似图筛选')
     assert(sim.cards >= 1, '相似图结果至少 1 条', sim.cards)
-    assert(sim.detail === false, '找相似后收起详情')
+    assert(sim.viewer === false, '找相似后收起大图')
     await js(`document.querySelector('.sim-chip')?.click()`)
     await sleep(300)
     assert(!(await js(`!!document.querySelector('.sim-chip')`)), '清除相似图筛选')

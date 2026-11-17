@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset, EntryDraft, ModelKind } from '../../../shared/types'
 import { MODEL_KIND_LABEL } from '../../../shared/types'
 import { assetMap, groupMap, tagMap, thumbUrl, useStore } from '../store'
-import { copyVariants } from '../copyVariants'
+import { copyVariants, isMjEntry } from '../copyVariants'
 import { Field, Icon, Modal, Stars, copyText, formatBytes } from './ui'
 
 function cleanError(e: unknown): string {
@@ -344,9 +344,10 @@ export default function EntryEditor(): React.ReactElement | null {
   const data = useStore((s) => s.data)
   const refresh = useStore((s) => s.refresh)
   const toast = useStore((s) => s.toast)
+  const showTip = useStore((s) => s.showTip)
 
-  const assets = useMemo(() => assetMap(data), [data])
-  const groups = useMemo(() => groupMap(data), [data])
+  const assets = useMemo(() => assetMap(data), [data.assets])
+  const groups = useMemo(() => groupMap(data), [data.tagGroups])
   const defaultModelKind = useMemo<ModelKind>(() => {
     if (!draft) return 'other'
     const kinds = draft.assetIds.map((id) => assets.get(id)?.kind)
@@ -566,15 +567,18 @@ export default function EntryEditor(): React.ReactElement | null {
                   <button
                     type="button"
                     className="link-btn"
-                    onClick={() => void copyText(draft.positive)}
+                    onClick={(e) =>
+                      void copyText(draft.positive).then(() =>
+                        showTip('已复制提示词', e.clientX, e.clientY)
+                      )
+                    }
                   >
                     <Icon name="check" size={11} /> 复制
                   </button>
                 )}
               </div>
               {(() => {
-                const extra = draft.params?.extra ?? {}
-                if (!extra['mjCodeparam'] && !extra['mjCodes']) return null
+                if (!isMjEntry(draft)) return null
                 const items = copyVariants(draft).filter((v) => v.id !== 'prompt')
                 return (
                   <div className="mj-copy-row">
@@ -585,9 +589,15 @@ export default function EntryEditor(): React.ReactElement | null {
                         className="mj-chip"
                         disabled={v.disabled}
                         title={v.disabled ? '没有对应内容' : v.text.slice(0, 120)}
-                        onClick={() =>
+                        onClick={(e) =>
                           void copyText(v.text)
-                            .then(() => toast('已复制 ' + v.label, 'ok'))
+                            .then(() =>
+                              showTip(
+                                '已复制：' + v.label.replace(/^复制/, ''),
+                                e.clientX,
+                                e.clientY
+                              )
+                            )
                             .catch(() => toast('复制失败，请手动选中文本', 'err'))
                         }
                       >
@@ -618,7 +628,7 @@ export default function EntryEditor(): React.ReactElement | null {
                 className={'btn small' + (draft.favorite ? ' accent' : '')}
                 onClick={() => patch({ favorite: !draft.favorite })}
               >
-                <Icon name="star" size={12} /> {draft.favorite ? '已收藏' : '加入收藏'}
+                <Icon name="heart" size={12} /> {draft.favorite ? '已收藏' : '加入收藏'}
               </button>
             </Field>
           </div>

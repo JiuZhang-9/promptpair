@@ -7,7 +7,6 @@ import AiTagModal from './AiTagModal'
 export default function BatchBar(): React.ReactElement | null {
   const selectedIds = useStore((s) => s.selectedIds)
   const panel = useStore((s) => s.panel)
-  const detailId = useStore((s) => s.detailId)
   const data = useStore((s) => s.data)
   const clearSelection = useStore((s) => s.clearSelection)
   const selectMany = useStore((s) => s.selectMany)
@@ -17,7 +16,7 @@ export default function BatchBar(): React.ReactElement | null {
   const refresh = useStore((s) => s.refresh)
   const toast = useStore((s) => s.toast)
 
-  const groups = useMemo(() => groupMap(data), [data])
+  const groups = useMemo(() => groupMap(data), [data.tagGroups])
   const tagModal = useStore((s) => s.batchTagModal)
   const setTagModal = useStore((s) => s.setBatchTagModal)
   const config = useStore((s) => s.config)
@@ -73,7 +72,7 @@ export default function BatchBar(): React.ReactElement | null {
 
   return (
     <>
-      <div className={'batchbar' + (detailId ? ' with-detail' : '')}>
+      <div className="batchbar">
         <div className="bb-count">
           <b>{selectedIds.length}</b> 条已选中
         </div>
@@ -123,7 +122,7 @@ export default function BatchBar(): React.ReactElement | null {
             )
           }
         >
-          <Icon name="star" size={13} /> {allFavorite ? '取消收藏' : '收藏'}
+          <Icon name="heart" size={13} /> {allFavorite ? '取消收藏' : '收藏'}
         </button>
         <div className="bb-spacer" />
         <button type="button" className="bb-btn accent" onClick={() => void exportPack(selectedIds, true)}>
