@@ -454,11 +454,26 @@ export interface MergeResult {
   createdModels: string[]
 }
 
+export interface MergeProgress {
+  stage: 'extract' | 'import' | 'done'
+  done: number
+  total: number
+  current?: string
+  entriesDone?: number
+  entriesTotal?: number
+}
+
 /** 把 .promptpack 合并进目标库 */
-export async function mergePack(lib: Library, packPath: string): Promise<MergeResult> {
+export async function mergePack(
+  lib: Library,
+  packPath: string,
+  onProgress?: (p: MergeProgress) => void
+): Promise<MergeResult> {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pp-pack-'))
   try {
-    await extractZip(packPath, tmp)
+    await extractZip(packPath, tmp, (p) =>
+      onProgress?.({ stage: 'extract', done: p.done, total: p.total, current: p.current })
+    )
 
     const manifestPath = path.join(tmp, 'manifest.json')
     if (!fs.existsSync(manifestPath)) throw new Error('不是有效的 PromptPair 分享包（缺少 manifest.json）')
@@ -468,6 +483,11 @@ export async function mergePack(lib: Library, packPath: string): Promise<MergeRe
     const dataPath = path.join(tmp, manifest.entry ?? 'data/prompts.json')
     if (!fs.existsSync(dataPath)) throw new Error('分享包缺少 data/prompts.json')
     const payload = JSON.parse(fs.readFileSync(dataPath, 'utf8'))
+    const totalEntries = Array.isArray(payload.entries) ? payload.entries.length : 0
+    const totalAssets = (payload.entries ?? []).reduce(
+      (n: number, e: any) => n + (Array.isArray(e.assets) ? e.assets.length : 0),
+      0
+    )
 
     const result: MergeResult = {
       entries: 0,
@@ -511,17 +531,28 @@ export async function mergePack(lib: Library, packPath: string): Promise<MergeRe
       result.createdModels.push(name)
     }
 
-    for (const item of payload.entries ?? []) {
+    let doneAssets = 0
+    for (let i = 0; i < totalEntries; i++) {
+      const item = payload.entries[i]
       const assetIds: string[] = []
       for (const a of item.assets ?? []) {
         const abs = path.join(tmp, (a.rel as string).replace(/\//g, path.sep))
-        if (!fs.existsSync(abs)) continue
-        const { asset } = await addFileToLibrary(lib, abs)
-        assetIds.push(asset.id)
-        result.assets++
+        if (fs.existsSync(abs)) {
+          const { asset } = await addFileToLibrary(lib, abs)
+          assetIds.push(asset.id)
+          result.assets++
+        }
+        doneAssets++
+        onProgress?.({
+          stage: 'import',
+          done: doneAssets,
+          total: totalAssets,
+          current: String(a.rel ?? ''),
+          entriesDone: result.entries,
+          entriesTotal: totalEntries
+        })
       }
-      if (!assetIds.length) continue
-
+      // 纯提示词条目没有产物，也要导入；此前这里 `continue` 会把它们整条丢掉
       const tagIds = (item.tags ?? []).map((n: string) => lib.ensureTag(n).id)
       const collectionIds = (item.collections ?? [])
         .map((n: string) => collNameToId.get(n))
@@ -547,9 +578,31 @@ export async function mergePack(lib: Library, packPath: string): Promise<MergeRe
         source: item.source || {}
       })
       result.entries++
+      onProgress?.({
+        stage: 'import',
+        done: doneAssets,
+        total: totalAssets,
+        current: item.title || '未命名',
+        entriesDone: result.entries,
+        entriesTotal: totalEntries
+      })
+    }
+
+    if (totalEntries > 0 && result.entries === 0) {
+      throw new Error(
+        `分享包里有 ${totalEntries} 条记录，但一条也没有导入成功（媒体 ${doneAssets}/${totalAssets}）。` +
+          '可能是包内媒体路径缺失或文件损坏，请查看日志。'
+      )
     }
 
     lib.flush()
+    onProgress?.({
+      stage: 'done',
+      done: totalAssets,
+      total: totalAssets,
+      entriesDone: result.entries,
+      entriesTotal: totalEntries
+    })
     return result
   } finally {
     try {

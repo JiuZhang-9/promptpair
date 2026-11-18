@@ -165,6 +165,7 @@ export interface PpApi {
   installUpdate(): Promise<void>
 
   openExternal(url: string): Promise<void>
+  openLogs(): Promise<{ ok: boolean; path: string; message?: string }>
   openExtensionFolder(): Promise<{ ok: boolean; path: string; message?: string }>
   showItem(p: string): Promise<void>
 

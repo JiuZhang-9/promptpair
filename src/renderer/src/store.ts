@@ -47,6 +47,22 @@ export interface ConfirmRequest {
   onConfirm: () => void | Promise<void>
 }
 
+/** 分享包导入进度（解压 → 导入媒体/记录） */
+export interface PackImportState {
+  active: boolean
+  stage: 'prepare' | 'extract' | 'import' | 'done'
+  done: number
+  total: number
+  current: string
+  entriesDone?: number
+  entriesTotal?: number
+}
+
+export interface PackImportError {
+  message: string
+  logPath?: string
+}
+
 interface ImportUiState {
   active: boolean
   done: number
@@ -103,6 +119,8 @@ export interface StoreState {
   toasts: Toast[]
   tip: CopyTip | null
   confirm: ConfirmRequest | null
+  packImport: PackImportState | null
+  packError: PackImportError | null
   importing: ImportUiState
   update: UpdateStatus
   systemDark: boolean
@@ -185,6 +203,8 @@ export interface StoreState {
   dropTip: (id?: string) => void
   askConfirm: (req: ConfirmRequest) => void
   closeConfirm: () => void
+  setPackImport: (p: PackImportState | null) => void
+  setPackError: (e: PackImportError | null) => void
 }
 
 const EMPTY_LIB: LibraryData = {
@@ -294,6 +314,8 @@ export const useStore = create<StoreState>((set, get) => ({
   toasts: [],
   tip: null,
   confirm: null,
+  packImport: null,
+  packError: null,
   importing: { active: false, done: 0, total: 0, current: '' },
   update: { state: 'idle' },
   systemDark: true,
@@ -333,6 +355,21 @@ export const useStore = create<StoreState>((set, get) => ({
         get().toast(parts.join(' · '), 'ok')
         if (r.failed.length) get().toast(`${r.failed.length} 个文件导入失败`, 'err')
         void get().refresh()
+      })
+      window.pp.on('pack:progress', (p: any) => {
+        if (p?.stage !== 'extract' && p?.stage !== 'import' && p?.stage !== 'done') return
+        if (p.stage === 'done' && !get().packImport?.active) return
+        set({
+          packImport: {
+            active: p.stage !== 'done',
+            stage: p.stage,
+            done: Number(p.done) || 0,
+            total: Number(p.total) || 0,
+            current: p.current ?? '',
+            entriesDone: p.entriesDone,
+            entriesTotal: p.entriesTotal
+          }
+        })
       })
       window.pp.on('capture:received', (p: any) => {
         get().toast(`已采集：${p.title}`, 'ok')
@@ -873,9 +910,17 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   async importPackDialog() {
+    set({
+      packError: null,
+      packImport: { active: true, stage: 'prepare', done: 0, total: 0, current: '选择分享包…' }
+    })
     try {
       const r = await window.pp.importPack()
-      if (!r) return
+      if (!r) {
+        set({ packImport: null })
+        return
+      }
+      set({ packImport: null })
       if (r.mode === 'new') {
         set({
           data: r.snapshot.data,
@@ -884,14 +929,22 @@ export const useStore = create<StoreState>((set, get) => ({
           selectedIds: [],
           viewerId: null
         })
-        get().toast(`已作为新库打开，导入 ${r.result.entries} 条`, 'ok')
+        get().toast(`已作为新库打开：${r.result.entries} 条记录 / ${r.result.assets} 个媒体`, 'ok')
         applyUiScaleVar(r.snapshot.config.uiScale)
       } else {
         await get().refresh()
-        get().toast(`合并完成：${r.result.entries} 条记录`, 'ok')
+        get().toast(`合并完成：${r.result.entries} 条记录 / ${r.result.assets} 个媒体`, 'ok')
       }
     } catch (e) {
-      get().toast('导入分享包失败：' + (e as Error).message, 'err')
+      const raw = (e as Error).message.replace(
+        /^Error invoking remote method '[^']+':\s*(Error:\s*)?/,
+        ''
+      )
+      const m = /\n\n日志：(.+)$/m.exec(raw)
+      set({
+        packImport: null,
+        packError: { message: raw, logPath: m?.[1]?.trim() }
+      })
     }
   },
 
@@ -945,7 +998,9 @@ export const useStore = create<StoreState>((set, get) => ({
     set((s) => (s.tip?.id === id ? { tip: null } : {}))
   },
   askConfirm: (req) => set({ confirm: req }),
-  closeConfirm: () => set({ confirm: null })
+  closeConfirm: () => set({ confirm: null }),
+  setPackImport: (p) => set({ packImport: p }),
+  setPackError: (e) => set({ packError: e })
 }))
 
 export function applyTheme(mode: AppConfig['theme'], systemDark: boolean): void {

@@ -50,6 +50,34 @@ function messageBox(ctx: AppCtx, opts: Electron.MessageBoxOptions) {
   return ctx.win ? dialog.showMessageBox(ctx.win, opts) : dialog.showMessageBox(opts)
 }
 
+/** 分享包导入日志：失败时给用户一个能打开/复制的落点 */
+function logPackImport(
+  packPath: string,
+  mode: string,
+  error: unknown,
+  lastProgress?: unknown
+): string {
+  const dir = path.join(app.getPath('userData'), 'logs')
+  fs.mkdirSync(dir, { recursive: true })
+  const file = path.join(dir, 'import-pack.log')
+  const err = error instanceof Error ? error : new Error(String(error))
+  const lines = [
+    `[${new Date().toISOString()}] pack import failed`,
+    `mode: ${mode}`,
+    `pack: ${packPath}`,
+    `last progress: ${JSON.stringify(lastProgress ?? null)}`,
+    `error: ${err.message}`,
+    err.stack ?? '',
+    ''
+  ]
+  try {
+    fs.appendFileSync(file, lines.join('\n'), 'utf8')
+  } catch {
+    /* 日志失败不覆盖原始错误 */
+  }
+  return file
+}
+
 function snapshot(ctx: AppCtx): { data: LibraryData; root: string; config: AppConfig; version: string; capturePort: number } {
   return {
     data: ctx.lib.data,
@@ -146,6 +174,13 @@ export function registerIpc(ctx: AppCtx): void {
     userData: app.getPath('userData'),
     isPackaged: app.isPackaged
   }))
+
+  ipcMain.handle('app:openLogs', async () => {
+    const dir = path.join(app.getPath('userData'), 'logs')
+    fs.mkdirSync(dir, { recursive: true })
+    const err = await shell.openPath(dir)
+    return { ok: !err, path: dir, message: err || undefined }
+  })
 
   ipcMain.handle('lib:get', () => snapshot(ctx))
 
@@ -620,47 +655,102 @@ export function registerIpc(ctx: AppCtx): void {
   )
 
   ipcMain.handle('pack:import', async () => {
-    const open = await openDialog(ctx, {
-      title: '导入 PromptPair 分享包',
-      properties: ['openFile'],
-      filters: [{ name: 'PromptPair 分享包', extensions: ['promptpack', 'zip'] }]
-    })
-    if (open.canceled || !open.filePaths[0]) return null
-
-    const mode = await messageBox(ctx, {
-      type: 'question',
-      title: '导入方式',
-      message: '要把这个分享包合并到当前库，还是作为一个全新的库打开？',
-      detail:
-        '合并到当前库：内容并入现有素材库（同名标签/集合自动对齐，媒体按内容去重）。\n' +
-        '作为新库打开：在「文档/PromptPair」下新建一个独立库，只包含这个分享包的内容。',
-      buttons: ['合并到当前库', '作为新库打开', '取消'],
-      defaultId: 0,
-      cancelId: 2
-    })
-    if (mode.response === 2) return null
-
-    if (mode.response === 1) {
-      const target = await openDialog(ctx, {
-        title: '选择新库要放在哪个文件夹',
-        properties: ['openDirectory', 'createDirectory'],
-        defaultPath: app.getPath('documents')
+    // 自动化验收钩子：PP_PACK_IMPORT 直接指定包，跳过文件/方式对话框
+    let packPath = process.env.PP_PACK_IMPORT || ''
+    let modeResponse = 0
+    if (!packPath) {
+      const open = await openDialog(ctx, {
+        title: '导入 PromptPair 分享包',
+        properties: ['openFile'],
+        filters: [{ name: 'PromptPair 分享包', extensions: ['promptpack', 'zip'] }]
       })
-      if (target.canceled || !target.filePaths[0]) return null
-      const packBase = path.basename(open.filePaths[0]).replace(/\.promptpack$/i, '').replace(/\.zip$/i, '')
-      const dir = path.join(target.filePaths[0], packBase)
-      fs.mkdirSync(dir, { recursive: true })
-      ctx.lib.flush()
-      const next = ctx.setLib(new Library(dir))
-      const r = await mergePack(next, open.filePaths[0])
-      next.data.name = packBase
-      next.flush()
-      return { mode: 'new' as const, result: r, snapshot: snapshot(ctx) }
+      if (open.canceled || !open.filePaths[0]) return null
+      packPath = open.filePaths[0]
+
+      const mode = await messageBox(ctx, {
+        type: 'question',
+        title: '导入方式',
+        message: '要把这个分享包合并到当前库，还是作为一个全新的库打开？',
+        detail:
+          '合并到当前库：内容并入现有素材库（同名标签/集合自动对齐，媒体按内容去重）。\n' +
+          '作为新库打开：在「文档/PromptPair」下新建一个独立库，只包含这个分享包的内容。',
+        buttons: ['合并到当前库', '作为新库打开', '取消'],
+        defaultId: 0,
+        cancelId: 2
+      })
+      if (mode.response === 2) return null
+      modeResponse = mode.response
+    } else {
+      modeResponse = process.env.PP_PACK_MODE === 'new' ? 1 : 0
     }
 
-    const r = await mergePack(ctx.lib, open.filePaths[0])
-    ctx.lib.flush()
-    return { mode: 'merge' as const, result: r }
+    let lastProgress: unknown
+    let lastSend = 0
+    const onProgress = (p: unknown): void => {
+      lastProgress = p
+      const stage = (p as { stage?: string }).stage
+      const now = Date.now()
+      if (stage !== 'done' && now - lastSend < 80) return
+      lastSend = now
+      send(ctx, 'pack:progress', p)
+    }
+
+    const modeLabel = modeResponse === 1 ? 'new' : 'merge'
+    try {
+      if (modeResponse === 1) {
+        let targetDir = process.env.PP_PACK_TARGET || ''
+        if (!targetDir) {
+          const target = await openDialog(ctx, {
+            title: '选择新库要放在哪个文件夹',
+            properties: ['openDirectory', 'createDirectory'],
+            defaultPath: app.getPath('documents')
+          })
+          if (target.canceled || !target.filePaths[0]) return null
+          targetDir = target.filePaths[0]
+        }
+        const packBase = path.basename(packPath).replace(/\.promptpack$/i, '').replace(/\.zip$/i, '')
+        const dir = path.join(targetDir, packBase)
+        fs.mkdirSync(dir, { recursive: true })
+        // 先合并到临时 Library，成功后才切换；中途失败不会把界面切到一个空库
+        const next = new Library(dir)
+        onProgress({ stage: 'extract', done: 0, total: 0, current: '正在读取分享包…' })
+        const r = await mergePack(next, packPath, onProgress)
+        next.data.name = packBase
+        next.flush()
+        ctx.setLib(next)
+        return { mode: 'new' as const, result: r, snapshot: snapshot(ctx) }
+      }
+
+      // 合并到当前库：先留一份 JSON 备份；失败时回滚内存数据并清掉刚写入的媒体
+      const before = JSON.stringify(ctx.lib.data)
+      try {
+        if (fs.existsSync(ctx.lib.filePath)) {
+          const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+          fs.copyFileSync(ctx.lib.filePath, path.join(ctx.lib.root, `library.backup-import-pack-${ts}.json`))
+        }
+      } catch {
+        /* 备份失败不阻塞，但失败日志里会提示 */
+      }
+      onProgress({ stage: 'extract', done: 0, total: 0, current: '正在读取分享包…' })
+      try {
+        const r = await mergePack(ctx.lib, packPath, onProgress)
+        ctx.lib.flush()
+        return { mode: 'merge' as const, result: r }
+      } catch (e) {
+        try {
+          ctx.lib.data = JSON.parse(before)
+          ctx.lib.gcOrphanAssets()
+          ctx.lib.touch()
+        } catch {
+          /* 回滚失败时保留原错误 */
+        }
+        throw e
+      }
+    } catch (e) {
+      const log = logPackImport(packPath, modeLabel, e, lastProgress)
+      const msg = e instanceof Error ? e.message : String(e)
+      throw new Error(`${msg}\n\n日志：${log}`)
+    }
   })
 
   ipcMain.handle('data:exportJson', async () => {

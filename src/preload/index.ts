@@ -99,6 +99,8 @@ const api = {
 
   /* 系统 */
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+  openLogs: () =>
+    ipcRenderer.invoke('app:openLogs') as Promise<{ ok: boolean; path: string; message?: string }>,
   openExtensionFolder: () =>
     ipcRenderer.invoke('app:openExtensionFolder') as Promise<{
       ok: boolean

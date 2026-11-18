@@ -111,6 +111,95 @@ function ConfirmHost(): React.ReactElement | null {
   )
 }
 
+function PackImportOverlay(): React.ReactElement | null {
+  const p = useStore((s) => s.packImport)
+  if (!p?.active) return null
+  const pct = p.total > 0 ? Math.min(100, Math.round((p.done / p.total) * 100)) : 0
+  const label =
+    p.stage === 'extract'
+      ? '解压分享包'
+      : p.stage === 'import'
+        ? '导入媒体与记录'
+        : p.stage === 'done'
+          ? '完成'
+          : '准备中'
+  const detail =
+    p.stage === 'import' && p.entriesTotal
+      ? `记录 ${p.entriesDone ?? 0} / ${p.entriesTotal} · 媒体 ${p.done} / ${p.total}`
+      : p.stage === 'extract' && p.total
+        ? `文件 ${p.done} / ${p.total}`
+        : '大分享包需要几分钟，请不要关闭窗口'
+  return (
+    <div className="import-overlay pack-import" data-pack-import>
+      <div className="import-card">
+        <div className="import-head">
+          <div className="spinner" />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="import-title">正在导入分享包…</div>
+            <div className="import-sub">{label}</div>
+          </div>
+          {p.total > 0 ? <div className="import-pct">{pct}%</div> : null}
+        </div>
+        <div className="import-track">
+          <div
+            className={'import-bar' + (p.total > 0 ? '' : ' indeterminate')}
+            style={p.total > 0 ? { width: `${pct}%` } : undefined}
+          />
+        </div>
+        <div className="import-note pack-import-detail">{detail}</div>
+        <div className="pack-import-file ellipsis" title={p.current}>
+          {p.current || '准备中…'}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PackErrorDialog(): React.ReactElement | null {
+  const err = useStore((s) => s.packError)
+  const setErr = useStore((s) => s.setPackError)
+  const showTip = useStore((s) => s.showTip)
+  const toast = useStore((s) => s.toast)
+  if (!err) return null
+  return (
+    <Modal open onClose={() => setErr(null)} width={620} label="分享包导入失败">
+      <div className="pack-error-box">
+        <div className="mm-title">分享包导入失败</div>
+        <div className="mm-sub">原始库没有被切换；合并模式会自动回滚到导入前的数据。</div>
+        <pre className="pack-error-text">{err.message}</pre>
+        <div className="pack-error-actions">
+          <button
+            type="button"
+            className="btn"
+            onClick={() =>
+              void window.pp.openLogs().then((r) => {
+                if (!r.ok) toast(r.message || '打开日志文件夹失败', 'err')
+              })
+            }
+          >
+            <Icon name="folder" size={13} /> 打开日志文件夹
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() =>
+              void copyText(err.message)
+                .then(() => showTip('已复制错误信息'))
+                .catch(() => toast('复制失败，请手动选中', 'err'))
+            }
+          >
+            <Icon name="copy" size={13} /> 复制错误
+          </button>
+          <div className="pack-error-spacer" />
+          <button type="button" className="btn primary" onClick={() => setErr(null)}>
+            关闭
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 function ImportOverlay(): React.ReactElement | null {
   const imp = useStore((s) => s.importing)
   if (!imp.active) return null
@@ -527,6 +616,8 @@ export default function App(): React.ReactElement {
       <Toasts />
       <CopyTip />
       <ConfirmHost />
+      <PackImportOverlay />
+      <PackErrorDialog />
       <ImportOverlay />
     </div>
   )

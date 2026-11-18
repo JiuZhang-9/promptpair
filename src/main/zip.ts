@@ -90,33 +90,48 @@ export function readZipEntries(fd: number, size: number): ZipEntryMeta[] {
   return segs.join(path.sep)
 }
 
-export async function extractZip(zipPath: string, destDir: string): Promise<void> {
+export interface ZipExtractProgress {
+  done: number
+  total: number
+  current: string
+}
+
+export async function extractZip(
+  zipPath: string,
+  destDir: string,
+  onProgress?: (p: ZipExtractProgress) => void
+): Promise<void> {
   fs.mkdirSync(destDir, { recursive: true })
   const size = fs.statSync(zipPath).size
   const fd = fs.openSync(zipPath, 'r')
   try {
-    for (const e of readZipEntries(fd, size)) {
+    const entries = readZipEntries(fd, size)
+    let done = 0
+    for (const e of entries) {
       const rel = safeEntryRel(e.name)
-      if (!rel) continue
-      const dest = path.join(destDir, rel)
-      fs.mkdirSync(path.dirname(dest), { recursive: true })
+      if (rel) {
+        const dest = path.join(destDir, rel)
+        fs.mkdirSync(path.dirname(dest), { recursive: true })
 
-      if (!e.compressedSize) {
-        fs.writeFileSync(dest, Buffer.alloc(0))
-        continue
+        if (!e.compressedSize) {
+          fs.writeFileSync(dest, Buffer.alloc(0))
+        } else {
+          const src = fs.createReadStream(zipPath, {
+            start: e.dataOffset,
+            end: e.dataOffset + e.compressedSize - 1
+          })
+          const dst = fs.createWriteStream(dest)
+          if (e.method === 0) await pipeline(src, dst)
+          else if (e.method === 8) await pipeline(src, zlib.createInflateRaw(), dst)
+          else {
+            src.destroy()
+            dst.destroy()
+            fs.rmSync(dest, { force: true })
+          }
+        }
       }
-      const src = fs.createReadStream(zipPath, {
-        start: e.dataOffset,
-        end: e.dataOffset + e.compressedSize - 1
-      })
-      const dst = fs.createWriteStream(dest)
-      if (e.method === 0) await pipeline(src, dst)
-      else if (e.method === 8) await pipeline(src, zlib.createInflateRaw(), dst)
-      else {
-        src.destroy()
-        dst.destroy()
-        fs.rmSync(dest, { force: true })
-      }
+      done++
+      onProgress?.({ done, total: entries.length, current: e.name })
     }
   } finally {
     fs.closeSync(fd)
