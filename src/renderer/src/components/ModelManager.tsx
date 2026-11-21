@@ -4,6 +4,7 @@ import { MODEL_KIND_LABEL } from '../../../shared/types'
 import { useStore } from '../store'
 import { levenshtein, normalizeName, versionKey } from '../similar'
 import { Empty, Icon, Modal } from './ui'
+import ModelCaps from './ModelCaps'
 
 function cleanError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e)
@@ -335,6 +336,7 @@ function ModelManagerBody(): React.ReactElement {
                   )}
 
                   <span className={'mm-kind ' + m.kind}>{MODEL_KIND_LABEL[m.kind]}</span>
+                  <ModelCaps name={m.name} kind={m.kind} compact only={['imagePrompt', 'styleRef']} />
                   <span className="tm-count">{count} 条</span>
 
                   {renaming?.id === m.id && count > 0 && (

@@ -12,6 +12,7 @@ import type {
   ExportOptions,
   ImportResult,
   LibraryData,
+  ModelCapabilities,
   ModelKind,
   TagCandidateAssignment,
   SavedView
@@ -286,8 +287,12 @@ export function registerIpc(ctx: AppCtx): void {
   )
   ipcMain.handle(
     'model:update',
-    (_e, id: string, patch: { name?: string; kind?: ModelKind }, syncEntries?: boolean) =>
-      ctx.lib.updateModel(id, patch, { syncEntries: !!syncEntries })
+    (
+      _e,
+      id: string,
+      patch: { name?: string; kind?: ModelKind; capabilities?: Partial<ModelCapabilities> },
+      syncEntries?: boolean
+    ) => ctx.lib.updateModel(id, patch, { syncEntries: !!syncEntries })
   )
   ipcMain.handle('model:delete', (_e, id: string) => ctx.lib.deleteModel(id))
   ipcMain.handle(

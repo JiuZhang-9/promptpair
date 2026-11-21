@@ -44,6 +44,7 @@ export function buildPreviewPack(
     negative: e.negative,
     note: e.note,
     rating: e.rating,
+    task: e.task,
     tags: e.tagIds.map(tagNameOf).filter(Boolean),
     collections: e.collectionIds.map((c) => collById.get(c)?.name ?? '').filter(Boolean),
     model: e.params?.model,
@@ -327,13 +328,18 @@ export async function exportPack(
       group: lib.data.tagGroups.find((g) => g.id === t.groupId)?.name ?? ''
     })),
     collections: lib.data.collections.map((c) => ({ name: c.name, color: c.color })),
-    models: (lib.data.models ?? []).map((m) => ({ name: m.name, kind: m.kind })),
+    models: (lib.data.models ?? []).map((m) => ({
+      name: m.name,
+      kind: m.kind,
+      capabilities: m.capabilities
+    })),
     entries: entries.map((e) => ({
       originId: e.originId ?? e.id,
       title: e.title,
       positive: e.positive,
       negative: e.negative,
       note: e.note,
+      task: e.task,
       rating: e.rating,
       favorite: e.favorite,
       tags: e.tagIds.map(tagNameOf).filter(Boolean),
@@ -527,7 +533,11 @@ export async function mergePack(
       const name = String(m?.name ?? '').trim()
       if (!name) continue
       if (lib.findModelByName(name)) continue
-      lib.createModel(name, m.kind === 'image' || m.kind === 'video' ? m.kind : 'other')
+      lib.createModel(
+        name,
+        m.kind === 'image' || m.kind === 'video' ? m.kind : 'other',
+        m.capabilities
+      )
       result.createdModels.push(name)
     }
 
@@ -569,6 +579,7 @@ export async function mergePack(
         positive: item.positive || '',
         negative: item.negative || '',
         note: item.note || '',
+        task: item.task === 'i2i' || item.task === 't2i' ? item.task : undefined,
         rating: item.rating || 0,
         favorite: !!item.favorite,
         collectionIds,

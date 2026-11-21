@@ -8,12 +8,15 @@
  *   code:ox27gsk          风格码 / --sref / --profile 等 MJ 码
  *   rating:>=4            rating:4
  *   kind:image / video
+ *   task:t2i / 文生图      task:i2i / 图生图
  *   is:favorite / unrated / rated
  *   has:prompt / negative / note
  *   before:2026-10-20     after:2026-10-01
  *
  * 未知的 key:value 会留在自由文本里，不会报错。
  */
+
+import type { TaskMode } from '../../shared/types'
 
 export type RatingOp = '>=' | '<=' | '>' | '<' | '='
 export type QueryKind = 'image' | 'video'
@@ -30,6 +33,8 @@ export interface ParsedQuery {
   codes: string[]
   ratings: { op: RatingOp; value: number }[]
   kinds: QueryKind[]
+  /** 生成方式（task:t2i / task:图生图） */
+  tasks: TaskMode[]
   flags: QueryFlag[]
   has: QueryHas[]
   before?: string
@@ -37,7 +42,7 @@ export interface ParsedQuery {
   errors: string[]
 }
 
-const TOKEN = /(tag|model|platform|collection|code|rating|kind|is|has|before|after):(?:"([^"]*)"|(\S+))/gi
+const TOKEN = /(tag|model|platform|collection|code|rating|kind|task|is|has|before|after):(?:"([^"]*)"|(\S+))/gi
 
 function normalizeValue(v: string): string {
   return v.trim().toLowerCase()
@@ -53,6 +58,7 @@ export function parseQuery(raw: string): ParsedQuery {
     codes: [],
     ratings: [],
     kinds: [],
+    tasks: [],
     flags: [],
     has: [],
     errors: []
@@ -86,6 +92,16 @@ export function parseQuery(raw: string): ParsedQuery {
         else {
           out.errors.push(`kind:${value} 只能是 image / video`)
         }
+        return ' '
+      }
+
+      if (key === 'task') {
+        const v = normalizeValue(value)
+        if (v === 't2i' || v === '文生图' || v === '文生' || v === 'text2image')
+          out.tasks.push('t2i')
+        else if (v === 'i2i' || v === '图生图' || v === '图生' || v === 'img2img')
+          out.tasks.push('i2i')
+        else out.errors.push(`task:${value} 只能是 t2i / i2i / 文生图 / 图生图`)
         return ' '
       }
 

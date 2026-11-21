@@ -12,10 +12,27 @@
 export type Id = string
 
 /** 库结构版本，与 App 版本无关；每次破坏性改动 +1 并补迁移 */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 /** 支持的媒体类型 */
 export type AssetKind = 'image' | 'video'
+
+/** 生成方式：文生图/文生视频 = t2i；图生图/图生视频 = i2i */
+export type TaskMode = 't2i' | 'i2i'
+
+/** 模型能力：只用于标注与筛选，不参与生成 */
+export interface ModelCapabilities {
+  /** 文生图 / 文生视频 */
+  t2i: boolean
+  /** 图生图 / 图生视频 */
+  i2i: boolean
+  /** 图像编辑（局部重绘、扩图、改图等） */
+  edit: boolean
+  /** Midjourney 式「垫图」：图片作为底图/图像提示 */
+  imagePrompt: boolean
+  /** 风格参考：--sref / --profile / 风格码 */
+  styleRef: boolean
+}
 
 export interface Asset {
   /** 主键 = sha256 前 24 位，稳定且可读 */
@@ -81,6 +98,8 @@ export interface PromptEntry {
   tagIds: Id[]
   /** 一对多的「多」；顺序即展示顺序 */
   assetIds: Id[]
+  /** 生成方式（0.15.0）：t2i 文生 / i2i 图生；老库迁移时推断 */
+  task: TaskMode
   params: PromptParams
   source: SourceInfo
   createdAt: string
@@ -134,26 +153,52 @@ export interface ModelPreset {
   id: Id
   name: string
   kind: ModelKind
+  /** 模型能力标注（0.15.0）；老库 / 自定义模型缺省时按名字与 kind 兜底 */
+  capabilities?: ModelCapabilities
   /** 内置预设：可一键恢复默认词表 */
   builtin?: boolean
 }
 
+const IMAGE_MODEL_CAPS: ModelCapabilities = {
+  t2i: true,
+  i2i: true,
+  edit: true,
+  imagePrompt: false,
+  styleRef: false
+}
+
+const VIDEO_MODEL_CAPS: ModelCapabilities = {
+  t2i: true,
+  i2i: true,
+  edit: false,
+  imagePrompt: false,
+  styleRef: false
+}
+
+const MJ_MODEL_CAPS: ModelCapabilities = {
+  t2i: true,
+  i2i: true,
+  edit: true,
+  imagePrompt: true,
+  styleRef: true
+}
+
 /** 首次建库 / 老库升级时种入的默认模型词表。
  *  命名规范（2026-11-15 用户定）：英文官方名，不带版本号 */
-export const DEFAULT_MODELS: { name: string; kind: ModelKind }[] = [
+export const DEFAULT_MODELS: { name: string; kind: ModelKind; capabilities: ModelCapabilities }[] = [
   // Seedream = 字节跳动的图像模型（Seedance 才是视频模型）
-  { name: 'Seedream', kind: 'image' },
-  { name: 'Kling', kind: 'video' },
-  { name: 'Runway', kind: 'video' },
-  { name: 'Sora', kind: 'video' },
-  { name: 'Veo', kind: 'video' },
-  { name: 'Hailuo', kind: 'video' },
-  { name: 'PixVerse', kind: 'video' },
-  { name: 'Vidu', kind: 'video' },
-  { name: 'Wan', kind: 'video' },
-  { name: 'Midjourney', kind: 'image' },
-  { name: 'SDXL', kind: 'image' },
-  { name: 'Flux', kind: 'image' }
+  { name: 'Seedream', kind: 'image', capabilities: { ...IMAGE_MODEL_CAPS } },
+  { name: 'Kling', kind: 'video', capabilities: { ...VIDEO_MODEL_CAPS } },
+  { name: 'Runway', kind: 'video', capabilities: { ...VIDEO_MODEL_CAPS } },
+  { name: 'Sora', kind: 'video', capabilities: { ...VIDEO_MODEL_CAPS } },
+  { name: 'Veo', kind: 'video', capabilities: { ...VIDEO_MODEL_CAPS } },
+  { name: 'Hailuo', kind: 'video', capabilities: { ...VIDEO_MODEL_CAPS } },
+  { name: 'PixVerse', kind: 'video', capabilities: { ...VIDEO_MODEL_CAPS } },
+  { name: 'Vidu', kind: 'video', capabilities: { ...VIDEO_MODEL_CAPS } },
+  { name: 'Wan', kind: 'video', capabilities: { ...VIDEO_MODEL_CAPS } },
+  { name: 'Midjourney', kind: 'image', capabilities: { ...MJ_MODEL_CAPS } },
+  { name: 'SDXL', kind: 'image', capabilities: { ...IMAGE_MODEL_CAPS } },
+  { name: 'Flux', kind: 'image', capabilities: { ...IMAGE_MODEL_CAPS } }
 ]
 
 export const MODEL_KIND_LABEL: Record<ModelKind, string> = {
@@ -197,6 +242,8 @@ export interface SavedView {
   kind: KindFilter
   platform: string | null
   model: string | null
+  /** 生成方式筛选（0.15.0） */
+  task?: TaskMode | 'all'
   sort: SortKey
   createdAt: string
   updatedAt: string
@@ -269,6 +316,8 @@ export interface EntryDraft {
   collectionIds: Id[]
   tagIds: Id[]
   assetIds: Id[]
+  /** 生成方式；省略时由主进程按提示词/参考图推断 */
+  task?: TaskMode
   params: PromptParams
   source: SourceInfo
 }
@@ -281,6 +330,8 @@ export interface BatchPatch {
   removeCollectionIds?: Id[]
   rating?: number
   favorite?: boolean
+  /** 批量改生成方式 */
+  task?: TaskMode
 }
 
 /**
@@ -292,6 +343,7 @@ export interface EntryPatch {
   positive?: string
   negative?: string
   note?: string
+  task?: TaskMode
   params?: PromptParams
   source?: SourceInfo
   rating?: number

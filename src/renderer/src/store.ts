@@ -13,6 +13,7 @@ import type {
   SavedView,
   SortKey,
   Tag,
+  TaskMode,
   TagGroup,
   TagMode,
   UpdateStatus
@@ -88,6 +89,8 @@ export interface StoreState {
   ratingMin: number
   onlyFavorite: boolean
   kind: KindFilter
+  /** 生成方式筛选（0.15.0） */
+  task: TaskMode | 'all'
   platform: string | null
   /** 模型筛选：词表里的模型名；null = 不筛 */
   model: string | null
@@ -144,6 +147,7 @@ export interface StoreState {
   setRatingMin: (n: number) => void
   toggleFavorite: () => void
   setKind: (k: KindFilter) => void
+  setTask: (t: TaskMode | 'all') => void
   setPlatform: (p: string | null) => void
   setModelFilter: (m: string | null) => void
   findSimilar: (id: string) => void
@@ -293,6 +297,7 @@ export const useStore = create<StoreState>((set, get) => ({
   ratingMin: 0,
   onlyFavorite: false,
   kind: 'all',
+  task: 'all',
   platform: null,
   model: null,
   similarTo: null,
@@ -473,6 +478,7 @@ export const useStore = create<StoreState>((set, get) => ({
   setRatingMin: (n) => set({ ratingMin: n }),
   toggleFavorite: () => set((s) => ({ onlyFavorite: !s.onlyFavorite })),
   setKind: (k) => set({ kind: k }),
+  setTask: (t) => set({ task: t }),
   setPlatform: (p) => set({ platform: p }),
   setModelFilter: (m) => set({ model: m }),
   findSimilar: (id) => {
@@ -535,6 +541,7 @@ export const useStore = create<StoreState>((set, get) => ({
         ratingMin: s.ratingMin,
         onlyFavorite: s.onlyFavorite,
         kind: s.kind,
+        task: s.task,
         platform: s.platform,
         model: s.model,
         sort: s.sort
@@ -558,6 +565,7 @@ export const useStore = create<StoreState>((set, get) => ({
       ratingMin: v.ratingMin,
       onlyFavorite: v.onlyFavorite,
       kind: v.kind,
+      task: v.task ?? 'all',
       platform: v.platform,
       model: v.model,
       sort: v.sort,
@@ -603,6 +611,7 @@ export const useStore = create<StoreState>((set, get) => ({
       ratingMin: 0,
       onlyFavorite: false,
       kind: 'all',
+      task: 'all',
       platform: null,
       model: null,
       similarTo: null,
@@ -746,6 +755,7 @@ export const useStore = create<StoreState>((set, get) => ({
         collectionIds: get().collectionId ? [get().collectionId!] : [],
         tagIds: get().tagIds.slice(),
         assetIds: assetIds ?? [],
+        task: 't2i',
         params: {},
         source: {}
       }
@@ -768,6 +778,7 @@ export const useStore = create<StoreState>((set, get) => ({
         collectionIds: [...e.collectionIds],
         tagIds: [...e.tagIds],
         assetIds: [...e.assetIds],
+        task: e.task ?? 't2i',
         params: { ...e.params },
         source: { ...e.source }
       }
@@ -823,7 +834,7 @@ export const useStore = create<StoreState>((set, get) => ({
       ? new Map(
           get()
             .data.entries.filter((e) => ids.includes(e.id))
-            .map((e) => [e.id, { rating: e.rating, favorite: e.favorite }])
+            .map((e) => [e.id, { rating: e.rating, favorite: e.favorite, task: e.task }])
         )
       : null
 
@@ -836,6 +847,7 @@ export const useStore = create<StoreState>((set, get) => ({
             const next = { ...e }
             if (patch.rating !== undefined) next.rating = patch.rating
             if (patch.favorite !== undefined) next.favorite = patch.favorite
+            if (patch.task !== undefined) next.task = patch.task
             return next
           })
         }
@@ -876,6 +888,7 @@ export const useStore = create<StoreState>((set, get) => ({
           if (patch.positive !== undefined) next.positive = patch.positive
           if (patch.negative !== undefined) next.negative = patch.negative
           if (patch.note !== undefined) next.note = patch.note
+          if (patch.task !== undefined) next.task = patch.task
           if (patch.params !== undefined) next.params = patch.params
           if (patch.source !== undefined) next.source = { ...e.source, ...patch.source }
           if (patch.rating !== undefined) next.rating = patch.rating
@@ -1107,7 +1120,7 @@ export interface SelectEntriesOptions {
 }
 
 export function selectEntries(s: StoreState, opts: SelectEntriesOptions = {}): PromptEntry[] {
-  const { data, q, collectionId, tagIds, tagMode, ratingMin, onlyFavorite, kind, platform, model, sort } = s
+  const { data, q, collectionId, tagIds, tagMode, ratingMin, onlyFavorite, kind, task, platform, model, sort } = s
   const assets = assetMap(data)
   const tags = tagMap(data)
   const colls = collMap(data)
@@ -1128,6 +1141,8 @@ export function selectEntries(s: StoreState, opts: SelectEntriesOptions = {}): P
     if (!opts.ignoreCollection && collectionId && !e.collectionIds.includes(collectionId)) continue
     if (onlyFavorite && !e.favorite) continue
     if (ratingMin > 0 && e.rating < ratingMin) continue
+    if (task !== 'all' && e.task !== task) continue
+    if (parsed.tasks.length && !parsed.tasks.includes(e.task)) continue
     if (platform && (e.source?.platform ?? '') !== platform) continue
     if (model) {
       const cur = (e.params?.model ?? '').trim()

@@ -1,6 +1,6 @@
 /**
  * 0.10.0「找得到」验收：
- *   1. schema v1 → v2 迁移，views 数组存在
+ *   1. schema v1 → v3 迁移，views 数组存在
  *   2. 查询语法：tag / model / rating / is，错误提示入口
  *   3. 保存视图：保存当前筛选、侧栏应用、删除
  *   4. 相似图：修复指纹后，从详情找相似，结果 chip 可清除
@@ -59,7 +59,7 @@ app.whenReady().then(async () => {
   try {
     console.log('\n→ schema 迁移…')
     const schema = await js(`window.pp.getState().then(s => ({ version: s.data.schemaVersion, views: Array.isArray(s.data.views) }))`)
-    assert(schema.version === 2 && schema.views === true, '库迁移到 schema v2，views 已存在', schema)
+    assert(schema.version >= 3 && schema.views === true, '库迁移到 schema v3，views 已存在', schema)
 
     console.log('\n→ 查询语法…')
     const data = await js(`window.pp.getState().then(s => s.data)`)

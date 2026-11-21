@@ -12,6 +12,7 @@ import {
 } from '../store'
 import { parseQuery } from '../query'
 import { copyVariants, isMjEntry, variantText, type CopyVariant } from '../copyVariants'
+import { taskLabel } from '../../../shared/modes'
 import { Empty, Icon, Stars, copyText, formatClock } from './ui'
 
 const PAD = 18
@@ -78,8 +79,11 @@ function Card({
   onContextMenu: (e: React.MouseEvent) => void
 }): React.ReactElement {
   const first = assets.get(entry.assetIds[0] ?? '')
+  const textOnly = !first && entry.assetIds.length === 0
+  const missingAsset = !first && entry.assetIds.length > 0
   const video = first?.kind === 'video'
   const multi = entry.assetIds.length > 1
+  const entryTask = entry.task ?? 't2i'
   const model = entry.params?.model?.trim()
   const coll = entry.collectionIds.length ? colls.get(entry.collectionIds[0]) : undefined
   const activeSet = useMemo(() => new Set(activeTagIds), [activeTagIds])
@@ -111,7 +115,7 @@ function Card({
 
   return (
     <div
-      className={'card' + (selected ? ' sel' : '') + (focused ? ' focused' : '')}
+      className={'card' + (selected ? ' sel' : '') + (focused ? ' focused' : '') + (textOnly ? ' text-card' : '')}
       data-id={entry.id}
       style={{ width }}
       onClick={onSelect}
@@ -130,7 +134,16 @@ function Card({
         onMouseEnter={video ? () => setPreviewing(true) : undefined}
         onMouseLeave={video ? () => setPreviewing(false) : undefined}
       >
-        {first ? (
+        {textOnly ? (
+          <div className="text-cover">
+            <span className="text-cover-mark">“</span>
+            <div className="text-cover-prompt">{entry.positive || entry.title || '纯提示词'}</div>
+            <div className="text-cover-foot">
+              <span>纯提示词</span>
+              <span>{entry.positive.length} 字符</span>
+            </div>
+          </div>
+        ) : first ? (
           <img src={thumbUrl(first)} alt="" loading="lazy" decoding="async" draggable={false} />
         ) : (
           <div className="card-noimg">
@@ -156,6 +169,12 @@ function Card({
 
         <div className="card-badges">
           <span className="badge-left">
+            <span
+              className={'badge task ' + entryTask}
+              title={entryTask === 'i2i' ? '图生图：有参考图 / 改图等输入图' : '文生图：只输入提示词'}
+            >
+              {taskLabel(entryTask, first?.kind)}
+            </span>
             {codeMode === 'solo' && (
               <span className="badge code solo" title="独码：单个风格码即可复现效果">
                 独码
@@ -277,9 +296,15 @@ function Card({
 
       <div className="card-info">
         <div className="card-title">{entry.title || '未命名'}</div>
-        <div className={'card-prompt' + (entry.positive ? '' : ' dim')}>
-          {entry.positive || '（暂无提示词，双击补充）'}
-        </div>
+        {textOnly ? (
+          <div className="card-prompt dim">没有产物 · 纯提示词记录</div>
+        ) : missingAsset ? (
+          <div className="card-prompt dim">产物文件缺失</div>
+        ) : (
+          <div className={'card-prompt' + (entry.positive ? '' : ' dim')}>
+            {entry.positive || '（暂无提示词，单击补充）'}
+          </div>
+        )}
         {(model || coll || shownTags.length > 0) && (
           <div className="card-tags">
             {coll && (

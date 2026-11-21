@@ -13,6 +13,7 @@ const ROWS: [string, string][] = [
   ['rating:>=4', '评分大于等于 4'],
   ['rating:4', '评分正好 4'],
   ['kind:video', '只要视频（也支持 image）'],
+  ['task:t2i', '只看文生图（也支持 task:i2i / 图生图）'],
   ['is:favorite', '只看收藏（unrated / rated）'],
   ['has:negative', '有负向提示词（prompt / note）'],
   ['before:2026-10-20', '创建日期早于'],

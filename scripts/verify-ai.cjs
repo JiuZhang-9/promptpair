@@ -201,11 +201,11 @@ async function run() {
     const selected = await win.webContents.executeJavaScript(`
       (() => {
         const c = document.querySelector('.card')
-        if (c) c.click()
+        if (c) c.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }))
         return !!c
       })()
     `)
-    assert(selected, '点击卡片选中记录')
+    assert(selected, 'Ctrl+点击卡片选中记录')
     await sleep(500)
 
     const aiBtn = await win.webContents.executeJavaScript(`

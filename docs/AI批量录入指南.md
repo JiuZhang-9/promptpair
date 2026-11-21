@@ -59,6 +59,7 @@ AI 不一定能：
       "positive": "extreme wide establishing shot, surreal Song dynasty lotus pond, monumental lotus leaves …",
       "negative": "",
       "note": "",
+      "task": "t2i",
       "rating": 0,
       "favorite": false,
       "tags": [
@@ -97,6 +98,7 @@ AI 不一定能：
 | `title` | 是 | 卡片标题 |
 | `positive` | 是 | 正向提示词正文 |
 | `negative` / `note` | 否 | 负向 / 备注 |
+| `task` | 否 | `t2i` 文生 / `i2i` 图生；不填时按提示词里的「参考图 / 垫图 / 编辑」推断 |
 | `rating` / `favorite` | 否 | 0–5 星 / 是否收藏 |
 | `tags` | 否 | 字符串或 `{ name, group }`；不存在会自动创建，组不存在也会建 |
 | `collections` | 否 | 集合名数组；不存在会自动创建 |

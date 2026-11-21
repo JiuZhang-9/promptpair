@@ -3,8 +3,11 @@ import type { Asset, EntryDraft, ModelKind, PromptParams } from '../../../shared
 import { assetMap, groupMap, mediaUrl, tagMap, thumbUrl, useStore } from '../store'
 import { copyVariants, isMjEntry } from '../copyVariants'
 import { withSyncedCodes } from '../mjParams'
+import { capabilitiesOf } from '../../../shared/modes'
 import { Field, Icon, Stars, copyText, formatBytes } from './ui'
 import ModelPicker from './ModelPicker'
+import ModelCaps from './ModelCaps'
+import TaskPicker from './TaskPicker'
 import CollectionPicker from './CollectionPicker'
 import ParamEditor from './ParamEditor'
 
@@ -437,6 +440,18 @@ export default function EntryEditor(): React.ReactElement | null {
   const variants = copyVariants(draft)
   const mj = isMjEntry(draft)
   const currentModel = draft.params.model ?? ''
+  const mediaKind: ModelKind = media.some((a) => a.kind === 'video')
+    ? 'video'
+    : media.some((a) => a.kind === 'image')
+      ? 'image'
+      : 'other'
+  const modelPreset = (data.models ?? []).find(
+    (m) => m.name.trim().toLowerCase() === currentModel.trim().toLowerCase()
+  )
+  const modelKind = modelPreset?.kind ?? defaultModelKind
+  const modelCaps = capabilitiesOf(modelPreset, currentModel, modelKind)
+  const draftTask = draft.task ?? 't2i'
+  const taskWarning = draftTask === 'i2i' && !modelCaps.i2i
 
   return (
     <div className="es-screen" data-editor-screen>
@@ -653,6 +668,18 @@ export default function EntryEditor(): React.ReactElement | null {
                 <Icon name="heart" size={15} />
               </button>
             </div>
+            <div className="es-task-row">
+              <span className="es-rating-label">生成方式</span>
+              <TaskPicker
+                value={draftTask}
+                kind={mediaKind}
+                onChange={(t) => patch({ task: t })}
+              />
+            </div>
+            <ModelCaps name={currentModel} kind={modelKind} compact />
+            {taskWarning && (
+              <div className="es-task-warn">当前模型未标注「图生图」能力，请确认是否选错模型</div>
+            )}
             <div className="es-rating">
               <span className="es-rating-label">评分</span>
               <Stars value={draft.rating} size={17} onChange={(v) => patch({ rating: v })} />

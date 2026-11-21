@@ -7,6 +7,7 @@ import type {
   CollectionMergeResult,
   CollectionMoveResult,
   LibraryData,
+  ModelCapabilities,
   ModelKind,
   ModelPreset,
   PromptEntry,
@@ -20,9 +21,16 @@ import type {
   SavedView
 } from '../shared/types'
 import { DEFAULT_MODELS, DEFAULT_TAG_GROUPS, SCHEMA_VERSION } from '../shared/types'
+import { defaultCapabilities, inferTask } from '../shared/modes'
 
 function seedModels(): ModelPreset[] {
-  return DEFAULT_MODELS.map((m) => ({ id: newId(), name: m.name, kind: m.kind, builtin: true }))
+  return DEFAULT_MODELS.map((m) => ({
+    id: newId(),
+    name: m.name,
+    kind: m.kind,
+    capabilities: { ...m.capabilities },
+    builtin: true
+  }))
 }
 
 const LIB_FILE = 'library.json'
@@ -76,7 +84,31 @@ type Migration = (d: any) => any
 
 /** key = 目标版本。从 d.schemaVersion 逐级升到 SCHEMA_VERSION */
 const MIGRATIONS: Record<number, Migration> = {
-  2: (d) => ({ ...d, views: Array.isArray(d.views) ? d.views : [] })
+  2: (d) => ({ ...d, views: Array.isArray(d.views) ? d.views : [] }),
+  3: (d) => {
+    // 0.15.0：生成方式 + 模型能力。只补缺省，不覆盖用户已填的值。
+    for (const e of d.entries ?? []) {
+      if (e.task !== 't2i' && e.task !== 'i2i') {
+        e.task = inferTask({
+          positive: e.positive,
+          negative: e.negative,
+          note: e.note,
+          params: e.params
+        })
+      }
+    }
+    for (const m of d.models ?? []) {
+      const base = defaultCapabilities(
+        String(m?.name ?? ''),
+        m?.kind === 'image' || m?.kind === 'video' ? m.kind : 'other'
+      )
+      m.capabilities = { ...base, ...(m.capabilities ?? {}) }
+    }
+    for (const v of d.views ?? []) {
+      if (v.task !== 't2i' && v.task !== 'i2i') v.task = 'all'
+    }
+    return d
+  }
 }
 
 function migrate(raw: any): LibraryData {
@@ -259,6 +291,15 @@ export class Library {
         collectionIds: [...new Set(draft.collectionIds)],
         tagIds: [...new Set(draft.tagIds)],
         assetIds: [...new Set(draft.assetIds)],
+        task:
+          draft.task ??
+          cur.task ??
+          inferTask({
+            positive: draft.positive,
+            negative: draft.negative,
+            note: draft.note,
+            params: draft.params
+          }),
         params: draft.params,
         source: { ...cur.source, ...draft.source },
         originId: draft.originId ?? cur.originId,
@@ -279,6 +320,14 @@ export class Library {
       collectionIds: [...new Set(draft.collectionIds || [])],
       tagIds: [...new Set(draft.tagIds || [])],
       assetIds: [...new Set(draft.assetIds || [])],
+      task:
+        draft.task ??
+        inferTask({
+          positive: draft.positive,
+          negative: draft.negative,
+          note: draft.note,
+          params: draft.params
+        }),
       params: draft.params || {},
       source: draft.source || {},
       createdAt: t,
@@ -300,6 +349,7 @@ export class Library {
     if (patch.positive !== undefined) cur.positive = patch.positive
     if (patch.negative !== undefined) cur.negative = patch.negative
     if (patch.note !== undefined) cur.note = patch.note
+    if (patch.task !== undefined) cur.task = patch.task
     if (patch.params !== undefined) cur.params = patch.params
     if (patch.source !== undefined) cur.source = { ...cur.source, ...patch.source }
     if (patch.rating !== undefined) cur.rating = patch.rating
@@ -330,6 +380,7 @@ export class Library {
       n++
       if (patch.rating !== undefined) e.rating = patch.rating
       if (patch.favorite !== undefined) e.favorite = patch.favorite
+      if (patch.task !== undefined) e.task = patch.task
       if (patch.addTagIds?.length) e.tagIds = [...new Set([...e.tagIds, ...patch.addTagIds])]
       if (patch.removeTagIds?.length) {
         const rm = new Set(patch.removeTagIds)
@@ -533,21 +584,31 @@ export class Library {
     return (this.data.models ?? []).find((m) => this.modelEq(m.name, name))
   }
 
-  createModel(name: string, kind: ModelKind = 'other'): ModelPreset {
+  createModel(
+    name: string,
+    kind: ModelKind = 'other',
+    capabilities?: ModelCapabilities
+  ): ModelPreset {
     const clean = name.trim().replace(/\s+/g, ' ')
     if (!clean) throw new Error('模型名不能为空')
     if (this.findModelByName(clean)) throw new Error(`模型「${clean}」已在词表中`)
-    const m: ModelPreset = { id: newId(), name: clean, kind, builtin: false }
+    const m: ModelPreset = {
+      id: newId(),
+      name: clean,
+      kind,
+      capabilities: { ...defaultCapabilities(clean, kind), ...(capabilities ?? {}) },
+      builtin: false
+    }
     this.data.models ??= []
     this.data.models.push(m)
     this.touch()
     return m
   }
 
-  /** 重命名 / 改类型；syncEntries 时把条目里的旧名字一并替换 */
+  /** 重命名 / 改类型 / 改能力；syncEntries 时把条目里的旧名字一并替换 */
   updateModel(
     id: string,
-    patch: { name?: string; kind?: ModelKind },
+    patch: { name?: string; kind?: ModelKind; capabilities?: Partial<ModelCapabilities> },
     opts: { syncEntries?: boolean } = {}
   ): { model: ModelPreset; affectedEntries: number } {
     const m = (this.data.models ?? []).find((x) => x.id === id)
@@ -560,7 +621,19 @@ export class Library {
       if (dup && dup.id !== id) throw new Error(`模型「${clean}」已在词表中`)
       m.name = clean
     }
-    if (patch.kind !== undefined) m.kind = patch.kind
+    if (patch.kind !== undefined) {
+      m.kind = patch.kind
+      if (patch.capabilities === undefined) {
+        m.capabilities = defaultCapabilities(m.name, m.kind)
+      }
+    }
+    if (patch.capabilities !== undefined) {
+      m.capabilities = {
+        ...defaultCapabilities(m.name, m.kind),
+        ...(m.capabilities ?? {}),
+        ...patch.capabilities
+      }
+    }
 
     let affectedEntries = 0
     if (opts.syncEntries && m.name !== oldName) {
@@ -788,6 +861,7 @@ export class Library {
       ratingMin: Math.max(0, Math.min(5, Number(input.ratingMin) || 0)),
       onlyFavorite: !!input.onlyFavorite,
       kind: input.kind === 'image' || input.kind === 'video' ? input.kind : 'all',
+      task: input.task === 't2i' || input.task === 'i2i' ? input.task : 'all',
       platform: input.platform || null,
       model: input.model || null,
       sort:

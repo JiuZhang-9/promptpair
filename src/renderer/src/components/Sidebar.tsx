@@ -52,6 +52,7 @@ export default function Sidebar(): React.ReactElement {
   const ratingMin = useStore((s) => s.ratingMin)
   const onlyFavorite = useStore((s) => s.onlyFavorite)
   const kind = useStore((s) => s.kind)
+  const task = useStore((s) => s.task)
   const platform = useStore((s) => s.platform)
   const modelFilter = useStore((s) => s.model)
   const setModelFilter = useStore((s) => s.setModelFilter)
@@ -64,6 +65,7 @@ export default function Sidebar(): React.ReactElement {
   const setRatingMin = useStore((s) => s.setRatingMin)
   const toggleFavorite = useStore((s) => s.toggleFavorite)
   const setKind = useStore((s) => s.setKind)
+  const setTask = useStore((s) => s.setTask)
   const setPlatform = useStore((s) => s.setPlatform)
   const setPanel = useStore((s) => s.setPanel)
   const saveCurrentView = useStore((s) => s.saveCurrentView)
@@ -125,6 +127,16 @@ export default function Sidebar(): React.ReactElement {
       .sort((a, b) => b.count - a.count)
       .slice(0, 16)
   }, [data.entries, data.models])
+
+  const taskCounts = useMemo(() => {
+    let t2i = 0
+    let i2i = 0
+    for (const e of data.entries) {
+      if ((e.task ?? 't2i') === 'i2i') i2i++
+      else t2i++
+    }
+    return { t2i, i2i }
+  }, [data.entries])
 
   const platforms = useMemo(() => {
     const m = new Map<string, number>()
@@ -273,7 +285,14 @@ export default function Sidebar(): React.ReactElement {
   }
 
   const hasFilter =
-    !!q.trim() || !!collectionId || tagIds.length > 0 || ratingMin > 0 || onlyFavorite || kind !== 'all' || !!platform
+    !!q.trim() ||
+    !!collectionId ||
+    tagIds.length > 0 ||
+    ratingMin > 0 ||
+    onlyFavorite ||
+    kind !== 'all' ||
+    task !== 'all' ||
+    !!platform
 
   return (
     <aside className="sidebar">
@@ -470,6 +489,32 @@ export default function Sidebar(): React.ReactElement {
                 {label}
               </button>
             ))}
+          </div>
+        </Section>
+
+        <Section title="生成方式 · T2I / I2I">
+          <div className="seg">
+            {(
+              [
+                ['all', '全部', 'layers'],
+                ['t2i', '文生图', 'sparkles'],
+                ['i2i', '图生图', 'image']
+              ] as const
+            ).map(([k, label, icon]) => (
+              <button
+                key={k}
+                type="button"
+                data-task={k}
+                className={'seg-btn' + (task === k ? ' on' : '')}
+                onClick={() => setTask(k)}
+              >
+                <Icon name={icon} size={13} />
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="sb-hint">
+            文生图 {taskCounts.t2i} · 图生图 {taskCounts.i2i}
           </div>
         </Section>
 

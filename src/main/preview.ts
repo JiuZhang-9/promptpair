@@ -23,6 +23,8 @@ export interface PreviewItem {
   negative: string
   note: string
   rating: number
+  /** t2i / i2i；分享页也显示生成方式 */
+  task?: 't2i' | 'i2i'
   tags: string[]
   collections: string[]
   model?: string
@@ -85,6 +87,14 @@ input[type=search]:focus{border-color:var(--fg-4);background:var(--surface-3)}
 .video-note{font-size:11px;color:var(--fg-4);margin-top:10px;text-align:center;line-height:1.6}
 .thumb{position:relative;background:var(--surface-3);aspect-ratio:1/1;overflow:hidden}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb.text{display:flex;flex-direction:column;padding:18px 14px 12px;background:linear-gradient(155deg,#1b1b1e,#141416 58%,#222227)}
+.thumb .text-mark{font-family:Georgia,'Times New Roman','Songti SC',serif;font-size:32px;line-height:.7;color:var(--fg-4);height:20px}
+.thumb .text-body{flex:1;min-height:0;margin-top:4px;font-family:ui-monospace,Consolas,monospace;font-size:10.5px;line-height:1.6;color:var(--fg-2);display:-webkit-box;-webkit-line-clamp:10;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.thumb .taskbadge{position:absolute;left:8px;top:8px;background:rgba(10,10,11,.72);border:1px solid rgba(255,255,255,.1);color:#fff;font-size:9px;padding:2px 5px;border-radius:4px}
+.thumb .taskbadge.i2i{color:#f0bf5c;border-color:rgba(240,191,92,.35)}
+.thumb .badge.video{top:32px}
+.body .tasktag{font-size:9px;color:var(--fg-3);border:1px solid var(--line);border-radius:4px;padding:1px 5px;align-self:flex-start;background:rgba(255,255,255,.04)}
+.body .tasktag.i2i{color:#f0bf5c;border-color:rgba(240,191,92,.3)}
 .thumb .badge{position:absolute;left:8px;top:8px;background:rgba(10,10,11,.72);
   border:1px solid rgba(255,255,255,.1);color:#fff;font-size:10px;padding:2px 7px;
   border-radius:4px;backdrop-filter:blur(10px)}
@@ -184,11 +194,17 @@ function render(){
     const card = el('div','card');
     const th = el('div','thumb');
     const a0 = it.assets[0];
-    const img = el('img'); img.loading='lazy'; img.alt=it.title;
-    img.src = a0 ? (a0.thumb || a0.rel) : '';
-    if(!a0) img.style.display='none';
-    th.appendChild(img);
-    if(a0 && a0.kind==='video'){ const b=el('div','badge'); b.textContent='视频'; th.appendChild(b); }
+    if(!a0){
+      th.classList.add('text');
+      const m = el('div','text-mark'); m.textContent='“'; th.appendChild(m);
+      const tb = el('div','text-body'); tb.textContent = it.positive || it.title || '纯提示词'; th.appendChild(tb);
+    } else {
+      const img = el('img'); img.loading='lazy'; img.alt=it.title;
+      img.src = a0.thumb || a0.rel;
+      th.appendChild(img);
+    }
+    if(it.task){ const tbk = el('div','taskbadge'+(it.task==='i2i'?' i2i':'')); tbk.textContent = it.task==='i2i'?'图生图':'文生图'; th.appendChild(tbk); }
+    if(a0 && a0.kind==='video'){ const b=el('div','badge video'); b.textContent='视频'; th.appendChild(b); }
     if(it.assets.length>1){ const b=el('div','cnt'); b.textContent='×'+it.assets.length; th.appendChild(b); }
     card.appendChild(th);
     const body = el('div','body');

@@ -13,6 +13,7 @@ import type {
   EntryPatch,
   ImportResult,
   LibraryData,
+  ModelCapabilities,
   ModelKind,
   ModelPreset,
   PromptEntry,
@@ -83,7 +84,7 @@ export interface PpApi {
   createModel(name: string, kind: ModelKind): Promise<ModelPreset>
   updateModel(
     id: string,
-    patch: { name?: string; kind?: ModelKind },
+    patch: { name?: string; kind?: ModelKind; capabilities?: Partial<ModelCapabilities> },
     syncEntries?: boolean
   ): Promise<{ model: ModelPreset; affectedEntries: number }>
   deleteModel(id: string): Promise<ModelPreset>

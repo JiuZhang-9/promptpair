@@ -34,6 +34,8 @@ export interface CliEntryInput {
   positive: string
   negative?: string
   note?: string
+  /** 生成方式；不填时由主进程按提示词 / 参考图推断 */
+  task?: EntryDraft['task']
   rating?: number
   favorite?: boolean
   params?: EntryDraft['params']
@@ -305,6 +307,7 @@ export async function importBatchIntoLibrary(
         positive: it.positive,
         negative: it.negative ?? '',
         note: it.note ?? '',
+        task: it.task === 'i2i' || it.task === 't2i' ? it.task : undefined,
         rating: it.rating ?? 0,
         favorite: !!it.favorite,
         collectionIds,

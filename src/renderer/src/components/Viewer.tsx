@@ -10,8 +10,11 @@ import {
 } from '../store'
 import { copyVariants, isMjEntry } from '../copyVariants'
 import { withSyncedCodes } from '../mjParams'
+import { capabilitiesOf, taskLabel } from '../../../shared/modes'
 import { Icon, Stars, copyText, formatBytes, formatDate, formatDuration } from './ui'
 import ModelPicker from './ModelPicker'
+import ModelCaps from './ModelCaps'
+import TaskPicker from './TaskPicker'
 import CollectionPicker from './CollectionPicker'
 import ParamEditor from './ParamEditor'
 
@@ -250,6 +253,16 @@ export default function Viewer(): React.ReactElement | null {
   const mjVariants = copyVariants(entry)
   const hasMj = isMjEntry(entry)
   const transformed = flipX || flipY || gray
+  const entryTask = entry.task ?? 't2i'
+  const curKind: ModelKind = cur?.kind === 'video' ? 'video' : cur?.kind === 'image' ? 'image' : 'other'
+  const modelPreset = (data.models ?? []).find(
+    (m) =>
+      m.name.trim().toLowerCase().replace(/\s+/g, ' ') ===
+      (entry.params.model ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+  )
+  const modelKind: ModelKind = modelPreset?.kind ?? curKind
+  const modelCaps = capabilitiesOf(modelPreset, entry.params.model ?? '', modelKind)
+  const taskWarning = entryTask === 'i2i' && !modelCaps.i2i
 
   /* ── 查看器内联修改 ── */
   const patchParams = (params: PromptParams, negative?: string): void => {
@@ -333,7 +346,12 @@ export default function Viewer(): React.ReactElement | null {
     // 刚打开的 280ms 内忽略点击：防止习惯性双击的第二下把查看器立刻关掉
     if (Date.now() - openedAtRef.current < 280) return
     const t = e.target as HTMLElement
-    if (t.closest('button, .v-top, .v-filmstrip, .v-nav, .v-transchip, .ctx-menu, .ctx-backdrop')) return
+    if (
+      t.closest(
+        'button, .v-top, .v-filmstrip, .v-nav, .v-transchip, .ctx-menu, .ctx-backdrop, .v-text-card'
+      )
+    )
+      return
     closeViewer()
   }
 
@@ -392,7 +410,10 @@ export default function Viewer(): React.ReactElement | null {
           className="v-stage"
           ref={stageRef}
           onClick={onStageClick}
-          onContextMenu={openMenu}
+          onContextMenu={(e) => {
+            if (cur) openMenu(e)
+            else e.preventDefault()
+          }}
           onPointerDown={onStagePointerDown}
           onMouseDown={(e) => {
             if (e.button === 1) e.preventDefault()
@@ -401,7 +422,24 @@ export default function Viewer(): React.ReactElement | null {
             if (e.button === 1) e.preventDefault()
           }}
         >
-          {cur ? (
+          {!cur && entry.assetIds.length === 0 ? (
+            <div className="v-text-stage">
+              <div className="v-text-card">
+                <div className="v-text-mark">“</div>
+                <div className="v-text-body">
+                  {entry.positive || '这条纯提示词记录还没有正文。点「编辑」补充。'}
+                </div>
+                <div className="v-text-foot">
+                  <span className={'v-task-chip ' + entryTask}>
+                    {taskLabel(entryTask, 'image')}
+                  </span>
+                  {entry.params.model && <span>{entry.params.model}</span>}
+                  <span>{entry.positive.length} 字符</span>
+                  <span>纯提示词 · 无产物</span>
+                </div>
+              </div>
+            </div>
+          ) : cur ? (
             cur.kind === 'video' ? (
               <video
                 key={cur.id}
@@ -442,7 +480,10 @@ export default function Viewer(): React.ReactElement | null {
                   ? `记录 ${Math.max(0, viewerIndex) + 1} / ${viewerIds.length}`
                   : '1 / 1'}
             </span>
-            {cur?.kind !== 'video' && (
+            {!cur && entry.assetIds.length === 0 && (
+              <span className="v-pill hint hide-sm">滚轮翻记录 · 单击背景关闭</span>
+            )}
+            {cur && cur.kind !== 'video' && (
               <>
                 <span className="v-pill hint hide-sm">
                   滚轮切换图片 / 记录 · Ctrl+滚轮缩放 · 中键拖动 · 右键菜单 · 单击图片关闭
@@ -794,19 +835,34 @@ export default function Viewer(): React.ReactElement | null {
                   直接改，失焦即存
                 </span>
               </div>
-              <div style={{ marginBottom: 7 }}>
+              <div className="v-task-row">
+                <span className="v-task-label">生成方式</span>
+                <TaskPicker
+                  value={entryTask}
+                  kind={cur?.kind ?? 'image'}
+                  onChange={(t) => void patchEntry(entry.id, { task: t })}
+                  compact
+                />
+              </div>
+              <div style={{ marginBottom: 5 }}>
                 <ModelPicker
                   value={entry.params.model ?? ''}
                   defaultKind={(cur?.kind === 'video' ? 'video' : 'image') as ModelKind}
                   onChange={setModel}
                 />
               </div>
+              <ModelCaps name={entry.params.model ?? ''} kind={modelKind} compact />
+              {taskWarning && (
+                <div className="v-task-warn">当前模型未标注「图生图」能力</div>
+              )}
+              <div style={{ marginTop: 7 }}>
               <ParamEditor
                 params={entry.params}
                 negative={entry.negative}
                 onChange={(params, negative) => patchParams(params, negative)}
                 hint={false}
               />
+              </div>
             </div>
 
             <div className="v-sec">

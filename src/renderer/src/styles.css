@@ -6655,3 +6655,286 @@ body {
     padding: 0 8px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   0.15.0「分得清」：T2I / I2I、模型能力、纯提示词文字卡片
+   ═══════════════════════════════════════════════════════════ */
+
+/* 卡片左上角：生成方式 */
+.badge.task {
+  font-size: 9.5px;
+  height: 18px;
+  padding: 0 5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.badge.task.i2i {
+  color: #f0bf5c;
+  border-color: rgba(240, 191, 92, 0.38);
+  background: rgba(44, 32, 10, 0.82);
+}
+
+/* 纯提示词卡片：封面直接放正文 */
+.text-cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 16px 38px;
+  background:
+    radial-gradient(90% 65% at 18% 8%, rgba(255, 255, 255, 0.07), transparent 62%),
+    linear-gradient(155deg, var(--surface-3), var(--surface-2) 55%, var(--surface-4));
+  color: var(--fg-2);
+}
+
+.text-cover-mark {
+  font-family: Georgia, 'Times New Roman', 'Songti SC', serif;
+  font-size: 36px;
+  line-height: 0.8;
+  color: var(--fg-4);
+  height: 22px;
+}
+
+.text-cover-prompt {
+  flex: 1;
+  min-height: 0;
+  margin-top: 5px;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.58;
+  color: var(--fg-2);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 10;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+.text-cover-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line-2);
+  font-size: 9.5px;
+  color: var(--fg-4);
+  letter-spacing: 0.02em;
+}
+
+.text-cover-foot span:last-child {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.card.text-card .card-thumb {
+  background: var(--surface-3);
+}
+
+.card.text-card .card-info {
+  border-top: 1px solid var(--line);
+}
+
+/* 文字查看器：纯提示词条目的左侧阅读区 */
+.v-text-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 74px 34px 34px;
+  overflow: auto;
+  background:
+    radial-gradient(70% 60% at 50% 12%, rgba(255, 255, 255, 0.045), transparent 60%),
+    var(--stage);
+}
+
+.v-text-card {
+  width: min(760px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 30px 34px 22px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  user-select: text;
+}
+
+.v-text-mark {
+  font-family: Georgia, 'Times New Roman', 'Songti SC', serif;
+  font-size: 54px;
+  line-height: 0.7;
+  color: var(--fg-4);
+  height: 30px;
+}
+
+.v-text-body {
+  margin-top: 8px;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.v-text-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 10.5px;
+  color: var(--fg-4);
+}
+
+.v-task-chip {
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-xs);
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line-2);
+  color: var(--fg-2);
+  background: var(--surface-2);
+  font-size: 10px;
+}
+
+.v-task-chip.i2i {
+  color: #f0bf5c;
+  border-color: rgba(240, 191, 92, 0.35);
+}
+
+/* 生成方式选择器 */
+.task-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.task-opt {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--r-xs);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--fg-3);
+  transition: 0.1s;
+}
+
+.task-opt .ico {
+  width: 11px;
+  height: 11px;
+}
+
+.task-opt:hover {
+  color: var(--fg);
+  background: var(--surface-3);
+}
+
+.task-opt.on {
+  color: var(--fg);
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+.task-picker.compact .task-opt {
+  height: 22px;
+  font-size: 10.5px;
+  padding: 0 7px;
+}
+
+.es-task-row,
+.v-task-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.v-task-row {
+  margin-top: 0;
+  margin-bottom: 7px;
+}
+
+.v-task-label {
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.es-task-warn,
+.v-task-warn {
+  margin-top: 5px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+
+/* 模型能力标注 */
+.model-caps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.model-caps.compact {
+  margin-top: 4px;
+  gap: 3px;
+}
+
+.cap-chip {
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--fg-3);
+  font-size: 9.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.model-caps.compact .cap-chip {
+  height: 16px;
+  padding: 0 4px;
+  font-size: 9px;
+}
+
+.cap-chip.imagePrompt {
+  color: #f0bf5c;
+  border-color: rgba(240, 191, 92, 0.32);
+  background: rgba(240, 191, 92, 0.07);
+}
+
+.cap-chip.styleRef {
+  color: #a9c7e8;
+  border-color: rgba(169, 199, 232, 0.3);
+  background: rgba(169, 199, 232, 0.06);
+}
+
+/* 模型管理行里的能力 chip 不要挤掉名字 */
+.tm-row .model-caps {
+  margin-top: 0;
+  flex: none;
+}
+
+.tm-row .model-caps .cap-chip {
+  height: 15px;
+  font-size: 8.5px;
+  padding: 0 4px;
+}
