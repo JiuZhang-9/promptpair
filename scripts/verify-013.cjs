@@ -71,6 +71,15 @@ app.whenReady().then(async () => {
     return
   }
   win.setSize(1440, 860)
+  // 性能断言依赖 requestAnimationFrame：窗口被其它应用遮挡时 Chromium 会节流到极低帧率
+  try {
+    win.webContents.setBackgroundThrottling(false)
+  } catch {
+    /* older Electron */
+  }
+  win.setAlwaysOnTop(true)
+  win.show()
+  win.focus()
   await sleep(700)
 
   try {
@@ -120,7 +129,7 @@ app.whenReady().then(async () => {
       win,
       `(() => {
         const card = document.querySelector('.card')
-        card.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
+        card.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
         return true
       })()`
     )
@@ -137,7 +146,7 @@ app.whenReady().then(async () => {
         }
       })()`
     )
-    assert(r.open, '双击卡片打开大图查看')
+    assert(r.open, '单击卡片打开大图查看')
     assert(r.title.length > 0, '右侧显示标题', r.title)
     assert(r.collection.length > 0, '右侧显示所属集合', r.collection)
     assert(r.img, '左侧显示大图')

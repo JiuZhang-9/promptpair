@@ -115,10 +115,6 @@ function Card({
       data-id={entry.id}
       style={{ width }}
       onClick={onSelect}
-      onDoubleClick={(e) => {
-        e.preventDefault()
-        onOpenViewer()
-      }}
       onContextMenu={onContextMenu}
       role="button"
       tabIndex={0}
@@ -750,15 +746,14 @@ export default function Gallery(): React.ReactElement {
         const additive = e.ctrlKey || e.metaKey
         const range = e.shiftKey
         if (range || additive) {
+          // 0.14.1：单击直接进详情；Ctrl / Shift 单击留给多选
           select(entry.id, { additive, range })
-        } else {
-          // 0.13.0：单击只选中；双击 / 回车 / 眼睛打开大图
-          select(entry.id)
+          return
         }
+        openViewer(entry.id)
       }}
       onOpenViewer={() => {
         setFocusIndex(index)
-        select(entry.id)
         openViewer(entry.id)
       }}
       onEdit={() => startEdit(entry.id)}

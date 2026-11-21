@@ -168,7 +168,8 @@ export function Stars({
           key={i}
           type="button"
           className={
-            'star' +
+            'star lv' +
+            i +
             (i <= shown ? ' on' : '') +
             (!readOnly && hover && i <= hover ? ' pv' : '')
           }

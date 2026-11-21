@@ -194,7 +194,7 @@ app.whenReady().then(async () => {
     await js(`
       (() => {
         const card = document.querySelector('.card')
-        card?.click()
+        card?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }))
         document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', bubbles: true, cancelable: true }))
       })()
     `)

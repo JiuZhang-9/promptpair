@@ -93,7 +93,7 @@ app.whenReady().then(async () => {
     await win.webContents.executeJavaScript(`
       (() => {
         const c = document.querySelector('.card')
-        if (c) c.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
+        if (c) c.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
         return !!c
       })()
     `)

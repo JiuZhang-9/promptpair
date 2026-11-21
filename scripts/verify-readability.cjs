@@ -129,23 +129,32 @@ app.whenReady().then(async () => {
     await js(win, `document.querySelector('.card button.mini-tag:not(.coll)')?.click()`)
     await sleep(250)
 
-    console.log('\n→ 单击选中 / 双击打开大图')
+    console.log('\n→ 单击打开大图 / Ctrl+单击多选')
     const open = await js(win, `(() => {
       const c = document.querySelector('.card')
       c.click()
       return new Promise(resolve => setTimeout(() => resolve({
         viewer: !!document.querySelector('.viewer'),
-        dock: !!document.querySelector('.right-dock.open .detail'),
-        selected: c.classList.contains('sel')
-      }), 80))
+        dock: !!document.querySelector('.right-dock.open .detail')
+      }), 120))
     })()`)
-    assert(open.viewer === false && open.dock === false && open.selected === true, '单击只选中，不弹右栏', open)
-    await js(win, `document.querySelector('.card').dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))`)
-    await sleep(350)
-    assert(await js(win, `!!document.querySelector('.viewer .v-info')`), '双击打开大图查看')
+    assert(open.viewer === true && open.dock === false, '单击直接打开大图查看', open)
+    assert(await js(win, `!!document.querySelector('.viewer .v-info')`), '查看器右侧信息正常')
     await shot(win, '21-readability-detail')
     await js(win, `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
-    await sleep(220)
+    await sleep(260)
+    await js(
+      win,
+      `document.querySelector('.card').dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }))`
+    )
+    await sleep(120)
+    assert(
+      (await js(win, `document.querySelector('.card').classList.contains('sel')`)) &&
+        !(await js(win, `!!document.querySelector('.viewer')`)),
+      'Ctrl+单击只选中，不打开查看器'
+    )
+    await js(win, `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+    await sleep(180)
 
     console.log('\n→ 90–110% 界面比例')
     await js(win, `window.pp.patchConfig({ uiScale: 1 })`)

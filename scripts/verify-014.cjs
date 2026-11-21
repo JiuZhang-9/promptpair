@@ -15,6 +15,7 @@ const OUT = path.resolve('build/shots-014')
 const LIB = path.resolve('.smoke/lib/library.json')
 const UD = path.resolve('.smoke/userdata')
 const FIXTURE_ID = 'testmj0140000001'
+const FIXTURE_ONE_ID = 'testmj0140000002'
 fs.mkdirSync(OUT, { recursive: true })
 fs.mkdirSync(UD, { recursive: true })
 
@@ -57,9 +58,20 @@ const fixture = {
   createdAt: now,
   updatedAt: now
 }
-lib.entries = [fixture, ...lib.entries.filter((e) => e.id !== FIXTURE_ID)]
+const one = {
+  ...JSON.parse(JSON.stringify(fixture)),
+  id: FIXTURE_ONE_ID,
+  originId: 'test-mj-014-one',
+  title: '0.14 测试 · 单图记录',
+  rating: 3,
+  favorite: false,
+  assetIds: [fixture.assetIds[0]],
+  createdAt: new Date(Date.now() - 1000).toISOString(),
+  updatedAt: new Date(Date.now() - 1000).toISOString()
+}
+lib.entries = [fixture, one, ...lib.entries.filter((e) => e.id !== FIXTURE_ID && e.id !== FIXTURE_ONE_ID)]
 fs.writeFileSync(LIB, JSON.stringify(lib, null, 2))
-console.log('夹具：', fixture.title, '资产', fixture.assetIds.length)
+console.log('夹具：', fixture.title, '资产', fixture.assetIds.length, '；单图夹具', one.assetIds.length)
 
 app.setPath('userData', UD)
 app.on('browser-window-created', (_e, w) => {
@@ -129,12 +141,20 @@ app.whenReady().then(async () => {
   await sleep(800)
 
   try {
+    console.log('\n→ 卡片单击进入详情…')
+    await js(win, `document.querySelector('.card')?.click()`)
+    await sleep(450)
+    assert(await js(win, `!!document.querySelector('.viewer')`), '单击卡片直接打开查看器')
+    await js(win, `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+    await sleep(320)
+    assert(await js(win, `!document.querySelector('.viewer')`), 'Esc 关闭查看器')
+
     console.log('\n→ 编辑器布局…')
     await js(
       win,
       `(() => {
         const c = document.querySelector('.card')
-        c?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+        c?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }))
         document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', bubbles: true, cancelable: true }))
         return !!c
       })()`
@@ -146,12 +166,14 @@ app.whenReady().then(async () => {
         const st = document.querySelector('.es-stage')?.getBoundingClientRect()
         const side = document.querySelector('.es-side')?.getBoundingClientRect()
         const fav = document.querySelector('.es-basics .fav')
+        const favIcon = document.querySelector('.es-basics .fav.on .ico')
         return {
           screen: !!document.querySelector('.es-screen'),
           st: st ? [st.left, st.width] : null,
           side: side ? [side.left, side.width] : null,
           favText: fav ? fav.textContent.trim() : null,
           favW: fav ? fav.getBoundingClientRect().width : null,
+          favColor: favIcon ? getComputedStyle(favIcon).color : null,
           title: document.querySelector('.es-title')?.value
         }
       })()`
@@ -160,6 +182,7 @@ app.whenReady().then(async () => {
     assert(layout.st && layout.side && layout.st[0] < layout.side[0], '图片在左、参数在右', layout)
     assert(layout.side && layout.side[1] >= 330 && layout.side[1] <= 440, '右栏是一根窄竖列', layout.side && layout.side[1])
     assert(layout.favText === '' && layout.favW <= 34, '收藏是 30px 小图标', layout)
+    assert(layout.favColor === 'rgb(229, 72, 77)', '收藏是红心', layout.favColor)
     assert(layout.title && layout.title.includes('0.14 测试'), '标题载入', layout.title)
     await shot(win, '01-editor')
 
@@ -251,16 +274,23 @@ app.whenReady().then(async () => {
     )
     assert(starBefore && starBefore.fill !== 'none' && starBefore.fill !== 'rgba(0, 0, 0, 0)', '已选星是实心填充', starBefore)
     await js(win, `document.querySelector('.es-rating .star[data-star="5"]')?.click()`)
-    await sleep(120)
+    // 等颜色过渡 + 回弹动画结束，避免读到中间色
+    await sleep(460)
     const starAfter = await js(
       win,
       `(() => ({
         on: document.querySelectorAll('.es-rating .star.on').length,
-        pop: document.querySelectorAll('.es-rating .star.pop').length
+        pop: document.querySelectorAll('.es-rating .star.pop').length,
+        colors: [1,2,3,4,5].map(i => {
+          const s = document.querySelector('.es-rating .star[data-star="' + i + '"] .ico')
+          return s ? getComputedStyle(s).fill : null
+        })
       }))()`
     )
     assert(starAfter.on === 5, '点第 5 颗后 5 颗实心', starAfter)
     assert(starAfter.pop > 0, '点击回弹动画触发', starAfter)
+    assert(new Set(starAfter.colors).size === 5, '1–5 星冷暖各不相同', starAfter.colors)
+    assert(starAfter.colors[4] === 'rgb(255, 213, 74)', '5 星是亮黄色', starAfter.colors[4])
     await shot(win, '05-stars')
 
     console.log('\n→ 保存记录…')
@@ -274,7 +304,7 @@ app.whenReady().then(async () => {
     assert(saved && saved.rating === 5, '评分 5 已保存', saved && saved.rating)
 
     console.log('\n→ 查看器内联编辑…')
-    await js(win, `document.querySelector('.card')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))`)
+    await js(win, `document.querySelector('.card')?.click()`)
     await sleep(800)
     const vOpen = await js(
       win,
@@ -288,7 +318,7 @@ app.whenReady().then(async () => {
         }
       })()`
     )
-    assert(vOpen.viewer, '双击打开查看器', vOpen)
+    assert(vOpen.viewer, '单击卡片打开查看器', vOpen)
     assert(vOpen.p === '75' && vOpen.v === '8.3', '查看器读到最新参数', vOpen)
     const vSide = await js(win, `document.querySelector('.v-info')?.getBoundingClientRect().width`)
     assert(vSide && vSide <= 400, '查看器右栏不超过 400px', vSide)
@@ -400,12 +430,82 @@ app.whenReady().then(async () => {
     const gone = await js(win, `!document.querySelector('.viewer')`)
     assert(gone, '单击图片 / 空白处关闭查看器')
 
+    console.log('\n→ 单图记录滚轮翻记录 + 关闭按钮命中区…')
+    await js(win, `document.querySelector('.card[data-id="${FIXTURE_ONE_ID}"]')?.click()`)
+    await sleep(650)
+    const oneOpen = await js(
+      win,
+      `(() => ({
+        viewer: !!document.querySelector('.viewer'),
+        pill: document.querySelector('.viewer .v-pill')?.textContent || '',
+        title: document.querySelector('.v-title-input')?.value || ''
+      }))()`
+    )
+    assert(oneOpen.viewer && oneOpen.pill.includes('记录'), '单图条目顶部显示记录序号', oneOpen)
+    await js(
+      win,
+      `document.querySelector('.v-stage')?.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true }))`
+    )
+    await sleep(600)
+    const afterRecord = await js(win, `document.querySelector('.v-title-input')?.value || ''`)
+    assert(afterRecord && afterRecord !== oneOpen.title, '单图条目滚轮翻到相邻记录', {
+      before: oneOpen.title,
+      after: afterRecord
+    })
+    const panelHit = await js(
+      win,
+      `(() => {
+        const b = document.querySelector('[data-viewer-close="panel"]')
+        if (!b) return null
+        const r = b.getBoundingClientRect()
+        const pts = [
+          [r.left + r.width / 2, r.top + r.height / 2],
+          [r.left + 6, r.top + 6],
+          [r.right - 6, r.bottom - 6]
+        ]
+        return {
+          size: [Math.round(r.width), Math.round(r.height)],
+          hits: pts.map(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-viewer-close]') === b)
+        }
+      })()`
+    )
+    assert(panelHit && panelHit.size[0] >= 32 && panelHit.size[1] >= 32, '详情页 X 关闭按钮至少 32×32', panelHit)
+    assert(panelHit && panelHit.hits.every(Boolean), '详情页 X 关闭按钮边缘也能点中', panelHit)
+    await js(win, `document.querySelector('[data-viewer-close="panel"]')?.click()`)
+    await sleep(350)
+    assert(await js(win, `!document.querySelector('.viewer')`), '详情页顶部 X 关闭查看器')
+
+    await js(win, `document.querySelector('.card[data-id="testmj0140000002"]')?.click()`)
+    await sleep(600)
+    const stageHit = await js(
+      win,
+      `(() => {
+        const b = document.querySelector('[data-viewer-close="stage"]')
+        if (!b) return null
+        const r = b.getBoundingClientRect()
+        const pts = [
+          [r.left + r.width / 2, r.top + r.height / 2],
+          [r.left + 6, r.top + 6],
+          [r.right - 6, r.bottom - 6]
+        ]
+        return {
+          size: [Math.round(r.width), Math.round(r.height)],
+          hits: pts.map(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-viewer-close]') === b)
+        }
+      })()`
+    )
+    assert(stageHit && stageHit.size[1] >= 30, '图片右上角关闭按钮命中区足够', stageHit)
+    assert(stageHit && stageHit.hits.every(Boolean), '图片右上角关闭按钮边缘也能点中', stageHit)
+    await js(win, `document.querySelector('[data-viewer-close="stage"]')?.click()`)
+    await sleep(350)
+    assert(await js(win, `!document.querySelector('.viewer')`), '图片右上角关闭查看器')
+
     console.log('\n→ 编辑器未保存确认…')
     await js(
       win,
       `(() => {
         const c = document.querySelector('.card')
-        c?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+        c?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }))
         document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', bubbles: true, cancelable: true }))
         return true
       })()`

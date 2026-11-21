@@ -5430,7 +5430,8 @@ body {
   padding: 0;
   color: var(--fg-4);
   opacity: 0.72;
-  transition: color 0.1s, opacity 0.1s;
+  /* 颜色直接切换，动效只留给缩放；避免离屏时颜色停在过渡中间值 */
+  transition: opacity 0.1s;
 }
 
 .star:hover {
@@ -5451,7 +5452,7 @@ body {
 
 .star .ico {
   transform-origin: center;
-  transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1), fill 0.1s, color 0.1s;
+  transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .star:hover .ico {
@@ -6560,6 +6561,75 @@ body {
 
 .v-menu-head {
   max-width: 260px;
+}
+
+/* 0.14.1：星级冷暖 / 红心 / 关闭按钮命中区 */
+
+/* 1→5 由冷到暖，5 星是亮黄色 */
+.star.lv1.on,
+.star.lv1.pv {
+  color: #8fa8c7;
+}
+
+.star.lv2.on,
+.star.lv2.pv {
+  color: #aebdd0;
+}
+
+.star.lv3.on,
+.star.lv3.pv {
+  color: #d6c7a8;
+}
+
+.star.lv4.on,
+.star.lv4.pv {
+  color: #f0bf5c;
+}
+
+.star.lv5.on,
+.star.lv5.pv {
+  color: #ffd54a;
+}
+
+.star.lv5.on .ico,
+.star.lv5.pv .ico {
+  filter: drop-shadow(0 0 4px rgba(255, 213, 74, 0.45));
+}
+
+/* 收藏：红心（卡片 / 查看器 / 编辑器） */
+.card-fav.on {
+  color: var(--danger);
+  background: rgba(38, 12, 14, 0.8);
+  border-color: rgba(229, 72, 77, 0.5);
+}
+
+.card-fav.on .ico,
+.icon-btn.fav.on .ico,
+.viewer .icon-btn.fav.on .ico,
+.es-basics .fav.on .ico {
+  fill: currentColor;
+}
+
+.icon-btn.fav.on,
+.viewer .icon-btn.fav.on,
+.es-basics .fav.on {
+  color: var(--danger);
+  border-color: rgba(229, 72, 77, 0.38);
+}
+
+.es-basics .fav.on {
+  background: rgba(229, 72, 77, 0.1);
+}
+
+/* 关闭按钮：扩大命中区，避免“点得到但不触发” */
+.v-close-pill {
+  height: 32px;
+  padding: 0 12px;
+}
+
+.v-close-x {
+  width: 34px;
+  height: 34px;
 }
 
 @media (max-width: 1180px) {

@@ -131,7 +131,7 @@ app.whenReady().then(async () => {
     await sleep(400)
 
     // 打开查看器
-    await js(`document.querySelector('.card')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))`)
+    await js(`document.querySelector('.card')?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))`)
     await sleep(800)
     await shot(win, '014-06-viewer')
     const v = await js(`(() => ({

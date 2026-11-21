@@ -113,6 +113,9 @@ export interface StoreState {
   focusIndex: number | null
   /** 大图查看器当前条目；null = 关闭 */
   viewerId: string | null
+  /** 打开查看器时当前筛选结果的顺序快照：单图条目用滚轮/方向键翻记录 */
+  viewerIds: string[]
+  viewerIndex: number
   editorOpen: boolean
   draft: EntryDraft | null
   dupReport: DupReport | null
@@ -309,6 +312,8 @@ export const useStore = create<StoreState>((set, get) => ({
   anchorId: null,
   focusIndex: null,
   viewerId: null,
+  viewerIds: [],
+  viewerIndex: -1,
   editorOpen: false,
   draft: null,
   dupReport: null,
@@ -420,6 +425,11 @@ export const useStore = create<StoreState>((set, get) => ({
         // 清理已不存在的选中项 / 失效筛选 / 已删除的大图条目
         selectedIds: st.selectedIds.filter((id) => entryIds.has(id)),
         viewerId: st.viewerId && entryIds.has(st.viewerId) ? st.viewerId : null,
+        viewerIds: st.viewerIds.filter((id) => entryIds.has(id)),
+        viewerIndex:
+          st.viewerId && entryIds.has(st.viewerId)
+            ? st.viewerIds.filter((id) => entryIds.has(id)).indexOf(st.viewerId)
+            : -1,
         collectionId:
           st.collectionId && !collIds.has(st.collectionId) ? null : st.collectionId,
         tagIds: st.tagIds.filter((id) => tagIds.has(id)),
@@ -703,13 +713,25 @@ export const useStore = create<StoreState>((set, get) => ({
   },
   openViewer: (id) => {
     if (!id) {
-      set({ viewerId: null })
+      set({ viewerId: null, viewerIds: [], viewerIndex: -1 })
       return
     }
-    if (!get().data.entries.some((e) => e.id === id)) return
-    set({ viewerId: id, panel: 'none', batchTagModal: 'none' })
+    const s = get()
+    if (!s.data.entries.some((e) => e.id === id)) return
+    // 当前筛选结果的顺序快照：多图条目滚轮切图，单图条目滚轮切记录
+    const list = selectEntries(s)
+      .filter((e) => e.assetIds.length > 0)
+      .map((e) => e.id)
+    const ids = list.includes(id) ? list : [id, ...list.filter((x) => x !== id)]
+    set({
+      viewerId: id,
+      viewerIds: ids,
+      viewerIndex: Math.max(0, ids.indexOf(id)),
+      panel: 'none',
+      batchTagModal: 'none'
+    })
   },
-  closeViewer: () => set({ viewerId: null }),
+  closeViewer: () => set({ viewerId: null, viewerIds: [], viewerIndex: -1 }),
 
   startCreate: (assetIds) =>
     set({

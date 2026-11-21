@@ -142,31 +142,27 @@ app.whenReady().then(async () => {
       `document.querySelector('.card').getBoundingClientRect().width`
     )
     await js(win, `document.querySelector('.card')?.click()`)
-    await sleep(80)
-    const clickW1 = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
-    await sleep(140)
-    const clickW2 = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
-    await sleep(260)
-    const clickW3 = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
-    assert(
-      [clickW1, clickW2, clickW3].every((w) => Math.abs(w - beforeCardW) <= 5),
-      '点卡片时卡片不缩放',
-      { beforeCardW, clickW1, clickW2, clickW3 }
-    )
-    assert(
-      !(await js(win, `!!document.querySelector('.right-dock.open .detail')`)),
-      '单击只选中，不弹右侧详情'
-    )
-    await js(
-      win,
-      `document.querySelector('.card').dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))`
-    )
-    await sleep(360)
-    assert(await js(win, `!!document.querySelector('.viewer-shell')`), '双击打开大图查看')
+    await sleep(300)
+    const clickW = await js(win, `document.querySelector('.card').getBoundingClientRect().width`)
+    assert(Math.abs(clickW - beforeCardW) <= 5, '点卡片时卡片不缩放', { beforeCardW, clickW })
+    assert(await js(win, `!!document.querySelector('.viewer-shell')`), '单击直接打开大图查看')
     const vSub = await js(win, `document.querySelector('.v-sub')?.textContent || ''`)
     assert(/即梦|MJ|SDXL|可灵/.test(vSub), '大图右侧显示生成模型', vSub)
     await js(win, `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
     await sleep(240)
+    // Ctrl+单击仍然只做多选，不打开查看器
+    await js(
+      win,
+      `document.querySelector('.card')?.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }))`
+    )
+    await sleep(120)
+    assert(
+      (await js(win, `document.querySelector('.card')?.classList.contains('sel')`)) &&
+        !(await js(win, `!!document.querySelector('.viewer-shell')`)),
+      'Ctrl+单击只选中，不打开查看器'
+    )
+    await press(win, 'Escape')
+    await sleep(160)
 
     // 右侧栏现在只承载标签/模型/重复检测工具；Ctrl+Shift+B 用来收起/展开工具面板
     await press(win, 'g', { ctrlKey: true, shiftKey: true })
@@ -212,7 +208,10 @@ app.whenReady().then(async () => {
     assert(cardCopy, '卡片上有复制按钮')
     assert(clipboard.readText() === positive, '卡片复制写入剪贴板', clipboard.readText())
 
-    await js(win, `document.querySelector('.card')?.click()`)
+    await js(
+      win,
+      `document.querySelector('.card')?.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }))`
+    )
     await sleep(300)
     win.focus()
     win.webContents.focus()

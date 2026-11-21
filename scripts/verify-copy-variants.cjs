@@ -123,7 +123,7 @@ app.whenReady().then(async () => {
     assert(clip2.includes(' --ar '), '提示词+参数档含参数段', clip2.slice(-80))
 
     // 大图：打开 MJ 条目，chip 行三档（不含「仅复制提示词」，主按钮即为提示词）
-    await js(win, `(() => { const c = document.querySelector('.card'); if (c) c.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true })); return !!c })()`)
+    await js(win, `(() => { const c = document.querySelector('.card'); if (c) c.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); return !!c })()`)
     await sleep(900)
     const chips = await js(win, `[...document.querySelectorAll('.viewer .mj-copy-row .mj-chip')].map(b => b.textContent.replace('已复制','').trim())`)
     console.log('    大图 chips:', JSON.stringify(chips))

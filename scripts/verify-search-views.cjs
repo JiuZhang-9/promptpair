@@ -153,7 +153,7 @@ app.whenReady().then(async () => {
     assert(!!dup.id, '创建同资产副本')
     win.webContents.reload()
     await sleep(2400)
-    await js(`document.querySelector('.card[data-id="${original.id}"]')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))`)
+    await js(`document.querySelector('.card[data-id="${original.id}"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))`)
     await sleep(500)
     const similarBtn = await js(`(() => {
       const b = document.querySelector('.viewer [title="找相似图"]')

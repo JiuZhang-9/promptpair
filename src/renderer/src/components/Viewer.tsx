@@ -33,8 +33,11 @@ interface MenuPos {
 
 export default function Viewer(): React.ReactElement | null {
   const viewerId = useStore((s) => s.viewerId)
+  const viewerIds = useStore((s) => s.viewerIds)
+  const viewerIndex = useStore((s) => s.viewerIndex)
   const data = useStore((s) => s.data)
   const closeViewer = useStore((s) => s.closeViewer)
+  const openViewer = useStore((s) => s.openViewer)
   const startEdit = useStore((s) => s.startEdit)
   const patchEntries = useStore((s) => s.patchEntries)
   const patchEntry = useStore((s) => s.patchEntry)
@@ -71,6 +74,7 @@ export default function Viewer(): React.ReactElement | null {
   const panRef = useRef(pan)
   const idxRef = useRef(idx)
   const lastWheelRef = useRef(0)
+  const openedAtRef = useRef(0)
   zoomRef.current = zoom
   panRef.current = pan
   idxRef.current = idx
@@ -85,6 +89,7 @@ export default function Viewer(): React.ReactElement | null {
     setGray(false)
     setMenu(null)
     setCopied(null)
+    openedAtRef.current = Date.now()
   }, [viewerId])
 
   useEffect(() => {
@@ -159,6 +164,14 @@ export default function Viewer(): React.ReactElement | null {
     setCopied(null)
   }
 
+  /** 单图条目：滚轮 / 方向键在当前筛选结果里翻记录 */
+  const gotoRecord = (dir: number): void => {
+    if (viewerIds.length < 2) return
+    const at = viewerIndex >= 0 ? viewerIndex : 0
+    const next = viewerIds[(at + dir + viewerIds.length) % viewerIds.length]
+    if (next) openViewer(next)
+  }
+
   /* ── 键盘 ── */
   useEffect(() => {
     if (!entry) return
@@ -174,12 +187,14 @@ export default function Viewer(): React.ReactElement | null {
       }
       if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ']') {
         e.preventDefault()
-        switchTo(idxRef.current + 1)
+        if (n > 1) switchTo(idxRef.current + 1)
+        else gotoRecord(1)
         return
       }
       if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === '[') {
         e.preventDefault()
-        switchTo(idxRef.current - 1)
+        if (n > 1) switchTo(idxRef.current - 1)
+        else gotoRecord(-1)
         return
       }
       if (e.key === '+' || e.key === '=') {
@@ -202,7 +217,7 @@ export default function Viewer(): React.ReactElement | null {
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entry, closeViewer, startEdit, menu])
+  }, [entry, closeViewer, startEdit, menu, n, viewerIds, viewerIndex])
 
   /* ── 滚轮：直接切换 / Ctrl 缩放 ── */
   useEffect(() => {
@@ -217,17 +232,17 @@ export default function Viewer(): React.ReactElement | null {
         zoomBy(Math.exp(-e.deltaY * 0.0015), e)
         return
       }
-      if (n < 2) return
-      e.preventDefault()
       const now = Date.now()
       if (now - lastWheelRef.current < 170) return
       lastWheelRef.current = now
-      switchTo(idxRef.current + (e.deltaY > 0 ? 1 : -1))
+      e.preventDefault()
+      if (n > 1) switchTo(idxRef.current + (e.deltaY > 0 ? 1 : -1))
+      else gotoRecord(e.deltaY > 0 ? 1 : -1)
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewerId, cur?.kind, n])
+  }, [viewerId, cur?.kind, n, viewerIds, viewerIndex])
 
   if (!entry) return null
 
@@ -315,6 +330,8 @@ export default function Viewer(): React.ReactElement | null {
   }
 
   const onStageClick = (e: React.MouseEvent<HTMLDivElement>): void => {
+    // 刚打开的 280ms 内忽略点击：防止习惯性双击的第二下把查看器立刻关掉
+    if (Date.now() - openedAtRef.current < 280) return
     const t = e.target as HTMLElement
     if (t.closest('button, .v-top, .v-filmstrip, .v-nav, .v-transchip, .ctx-menu, .ctx-backdrop')) return
     closeViewer()
@@ -367,7 +384,7 @@ export default function Viewer(): React.ReactElement | null {
       className="viewer"
       data-viewer
       onClick={(e) => {
-        if (e.target === e.currentTarget) closeViewer()
+        if (e.target === e.currentTarget && Date.now() - openedAtRef.current >= 280) closeViewer()
       }}
     >
       <div className="viewer-shell">
@@ -419,12 +436,16 @@ export default function Viewer(): React.ReactElement | null {
 
           <div className="v-top">
             <span className="v-pill">
-              {idx + 1} / {Math.max(1, entry.assetIds.length)}
+              {n > 1
+                ? `${idx + 1} / ${n}`
+                : viewerIds.length > 1
+                  ? `记录 ${Math.max(0, viewerIndex) + 1} / ${viewerIds.length}`
+                  : '1 / 1'}
             </span>
             {cur?.kind !== 'video' && (
               <>
                 <span className="v-pill hint hide-sm">
-                  单击图片关闭 · 滚轮切换 · Ctrl+滚轮缩放 · 中键拖动 · 右键菜单
+                  滚轮切换图片 / 记录 · Ctrl+滚轮缩放 · 中键拖动 · 右键菜单 · 单击图片关闭
                 </span>
                 <div className="v-zoom">
                   <button type="button" title="缩小" onClick={() => zoomBy(1 / 1.25)}>
@@ -444,20 +465,27 @@ export default function Viewer(): React.ReactElement | null {
               </>
             )}
             <div className="v-top-spacer" />
-            <button type="button" className="v-pill btnlike" onClick={closeViewer} title="关闭 (Esc)">
+            <button
+              type="button"
+              className="v-pill btnlike v-close-pill"
+              onClick={closeViewer}
+              title="关闭 (Esc)"
+              data-viewer-close="stage"
+            >
               <Icon name="close" size={13} strokeWidth={2.2} /> 关闭
             </button>
           </div>
 
-          {multi && (
+          {(multi || viewerIds.length > 1) && (
             <>
               <button
                 type="button"
                 className="v-nav left"
-                title="上一张（← / [）"
+                title={multi ? '上一张（← / [）' : '上一条记录（← / [）'}
                 onClick={(e) => {
                   e.stopPropagation()
-                  switchTo(idx - 1)
+                  if (multi) switchTo(idx - 1)
+                  else gotoRecord(-1)
                 }}
               >
                 <Icon name="chevronLeft" size={18} strokeWidth={2.2} />
@@ -465,15 +493,16 @@ export default function Viewer(): React.ReactElement | null {
               <button
                 type="button"
                 className="v-nav right"
-                title="下一张（→ / ]）"
+                title={multi ? '下一张（→ / ]）' : '下一条记录（→ / ]）'}
                 onClick={(e) => {
                   e.stopPropagation()
-                  switchTo(idx + 1)
+                  if (multi) switchTo(idx + 1)
+                  else gotoRecord(1)
                 }}
               >
                 <Icon name="chevronRight" size={18} strokeWidth={2.2} />
               </button>
-              <div className="v-filmstrip">
+              {multi && <div className="v-filmstrip">
                 {entry.assetIds.map((id, i) => {
                   const a = assets.get(id)
                   if (!a) return null
@@ -497,7 +526,7 @@ export default function Viewer(): React.ReactElement | null {
                     </button>
                   )
                 })}
-              </div>
+              </div>}
             </>
           )}
 
@@ -637,7 +666,13 @@ export default function Viewer(): React.ReactElement | null {
                 {entry.params?.model ? ` · ${entry.params.model}` : ''} · {formatDate(entry.createdAt)}
               </div>
             </div>
-            <button type="button" className="icon-btn" title="关闭 (Esc)" onClick={closeViewer}>
+            <button
+              type="button"
+              className="icon-btn v-close-x"
+              title="关闭 (Esc)"
+              onClick={closeViewer}
+              data-viewer-close="panel"
+            >
               <Icon name="close" size={15} strokeWidth={2.2} />
             </button>
           </div>
