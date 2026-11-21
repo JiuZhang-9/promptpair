@@ -15,6 +15,7 @@ import type {
   TagCandidateAssignment,
   TagMergeResult,
   EntryDraft,
+  EntryPatch,
   BatchPatch,
   SavedView
 } from '../shared/types'
@@ -95,6 +96,15 @@ function migrate(raw: any): LibraryData {
   d.tags ??= []
   d.collections ??=[]
   d.views ??= []
+  // 0.14.0 编辑器直接读 entry.params / extra：老库缺字段时先补空对象，避免运行时崩溃
+  for (const e of d.entries) {
+    e.params ??= {}
+    e.params.extra ??= {}
+    e.source ??= {}
+    e.collectionIds ??= []
+    e.tagIds ??= []
+    e.assetIds ??= []
+  }
   // 老库没有模型词表：种入默认值；已有词表则补齐字段
   if (!Array.isArray(d.models) || d.models.length === 0) {
     d.models = seedModels()
@@ -277,6 +287,29 @@ export class Library {
     this.data.entries.unshift(entry)
     this.touch()
     return entry
+  }
+
+  /**
+   * 单条记录的局部修改（查看器内联编辑）。
+   * 与 upsertEntry 的区别：只改传入字段，不碰未传字段；params / source 由调用方给完整对象。
+   */
+  patchEntry(id: string, patch: EntryPatch): PromptEntry {
+    const cur = this.getEntry(id)
+    if (!cur) throw new Error('条目不存在：' + id)
+    if (patch.title !== undefined) cur.title = patch.title
+    if (patch.positive !== undefined) cur.positive = patch.positive
+    if (patch.negative !== undefined) cur.negative = patch.negative
+    if (patch.note !== undefined) cur.note = patch.note
+    if (patch.params !== undefined) cur.params = patch.params
+    if (patch.source !== undefined) cur.source = { ...cur.source, ...patch.source }
+    if (patch.rating !== undefined) cur.rating = patch.rating
+    if (patch.favorite !== undefined) cur.favorite = patch.favorite
+    if (patch.tagIds !== undefined) cur.tagIds = [...new Set(patch.tagIds)]
+    if (patch.collectionIds !== undefined) cur.collectionIds = [...new Set(patch.collectionIds)]
+    if (patch.assetIds !== undefined) cur.assetIds = [...new Set(patch.assetIds)]
+    cur.updatedAt = nowIso()
+    this.touch()
+    return cur
   }
 
   deleteEntries(ids: string[]): number {

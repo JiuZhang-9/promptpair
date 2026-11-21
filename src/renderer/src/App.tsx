@@ -88,7 +88,13 @@ function ConfirmHost(): React.ReactElement | null {
     }
   }
   return (
-    <Modal open onClose={busy ? () => undefined : closeConfirm} width={430} label={confirm.title}>
+    <Modal
+      open
+      onClose={busy ? () => undefined : closeConfirm}
+      width={430}
+      label={confirm.title}
+      zIndex={650}
+    >
       <div className="confirm-box">
         <div className="confirm-title">{confirm.title}</div>
         <div className="confirm-msg">{confirm.message}</div>

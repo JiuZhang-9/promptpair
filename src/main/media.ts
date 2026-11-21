@@ -1,8 +1,9 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { nativeImage, NativeImage } from 'electron'
-import type { Asset, AssetKind } from '../shared/types'
+import type { Asset, AssetKind, AssetTransform } from '../shared/types'
 import { kindOfExt } from '../shared/types'
 import { Library, newId, nowIso, shardPath } from './library'
 import { readVideoMeta } from './video-meta'
@@ -178,6 +179,75 @@ export async function addFileToLibrary(
 
   lib.addAsset(asset)
   return { asset, reused: false }
+}
+
+/**
+ * 翻转 / 去色：主进程用 nativeImage 处理，避免渲染层 canvas 被自定义协议污染。
+ * 结果作为新资源入库（内容寻址，同结果自动复用），原图不动。
+ */
+export async function transformAsset(
+  lib: Library,
+  assetId: string,
+  opts: AssetTransform
+): Promise<Asset> {
+  const asset = lib.getAsset(assetId)
+  if (!asset) throw new Error('资源不存在：' + assetId)
+  if (asset.kind !== 'image') throw new Error('只支持图片翻转 / 去色')
+  if (!opts.flipX && !opts.flipY && !opts.gray) return asset
+
+  const src = lib.abs(asset.relPath)
+  const img = nativeImage.createFromPath(src)
+  if (img.isEmpty()) throw new Error('图片解码失败：' + asset.relPath)
+
+  const { width, height } = img.getSize()
+  if (!width || !height) throw new Error('图片尺寸异常')
+  const raw = img.toBitmap() // BGRA
+  const stride = width * 4
+  const out = Buffer.alloc(raw.length)
+
+  for (let y = 0; y < height; y++) {
+    const sy = opts.flipY ? height - 1 - y : y
+    const srcRow = sy * stride
+    const dstRow = y * stride
+    if (!opts.flipX) {
+      raw.copy(out, dstRow, srcRow, srcRow + stride)
+      continue
+    }
+    for (let x = 0; x < width; x++) {
+      const si = srcRow + (width - 1 - x) * 4
+      const di = dstRow + x * 4
+      out[di] = raw[si]
+      out[di + 1] = raw[si + 1]
+      out[di + 2] = raw[si + 2]
+      out[di + 3] = raw[si + 3]
+    }
+  }
+
+  if (opts.gray) {
+    for (let i = 0; i < out.length; i += 4) {
+      // BGRA：0.114B + 0.587G + 0.299R
+      const l = Math.round(0.114 * out[i] + 0.587 * out[i + 1] + 0.299 * out[i + 2])
+      out[i] = l
+      out[i + 1] = l
+      out[i + 2] = l
+    }
+  }
+
+  const transformed = nativeImage.createFromBitmap(out, { width, height })
+  if (transformed.isEmpty()) throw new Error('图片变换失败')
+
+  const tmp = path.join(os.tmpdir(), `pp-transform-${Date.now()}-${newId()}.png`)
+  fs.writeFileSync(tmp, transformed.toPNG())
+  try {
+    const { asset: next } = await addFileToLibrary(lib, tmp)
+    return next
+  } finally {
+    try {
+      fs.rmSync(tmp, { force: true })
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 /** 给历史资源补齐缩略图/哈希/视频元数据（老库升级或早期失败时用） */

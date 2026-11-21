@@ -3,12 +3,14 @@ import type {
   AiTestResult,
   AppConfig,
   Asset,
+  AssetTransform,
   BatchPatch,
   Collection,
   CollectionMergeResult,
   CollectionMoveResult,
   DuplicateGroup,
   EntryDraft,
+  EntryPatch,
   ImportResult,
   LibraryData,
   ModelKind,
@@ -71,6 +73,7 @@ export interface PpApi {
   saveEntry(draft: EntryDraft): Promise<PromptEntry>
   deleteEntries(ids: string[]): Promise<{ deleted: number }>
   batchPatch(ids: string[], patch: BatchPatch): Promise<{ updated: number }>
+  patchEntry(id: string, patch: EntryPatch): Promise<PromptEntry>
 
   createTag(name: string, groupId: string): Promise<Tag>
   updateTag(id: string, patch: { name?: string; groupId?: string }): Promise<Tag>
@@ -107,6 +110,8 @@ export interface PpApi {
 
   addAssets(paths: string[]): Promise<Asset[]>
   addFromClipboard(): Promise<Asset | null>
+  transformAsset(assetId: string, opts: AssetTransform): Promise<Asset>
+  copyAssetImage(assetId: string): Promise<boolean>
   revealAsset(assetId: string): Promise<boolean>
   saveAssetAs(assetId: string, suggestedName?: string): Promise<string | null>
   repairAssets(): Promise<{ fixed: number }>

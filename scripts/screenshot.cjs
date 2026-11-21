@@ -131,11 +131,13 @@ app.whenReady().then(async () => {
     // 关闭编辑器，测试多选 + 批量条
     await win.webContents.executeJavaScript(`
       (() => {
-        const b = [...document.querySelectorAll('.ed-foot .btn')].find(x=>x.textContent.includes('取消'))
+        const b = [...document.querySelectorAll('.es-top .btn')].find(x=>x.textContent.includes('取消'))
         if (b) b.click()
         return true
       })()
     `)
+    await sleep(300)
+    await win.webContents.executeJavaScript(`document.querySelector('[data-confirm-ok]')?.click()`)
     await sleep(400)
 
     await win.webContents.executeJavaScript(`

@@ -83,7 +83,8 @@ export function Modal({
   children,
   width = 720,
   className = '',
-  label
+  label,
+  zIndex
 }: {
   open: boolean
   onClose: () => void
@@ -91,6 +92,8 @@ export function Modal({
   width?: number
   className?: string
   label?: string
+  /** 需要盖住查看器 / 全屏编辑器时传一个更高的层级 */
+  zIndex?: number
 }): React.ReactElement | null {
   const ref = useRef<HTMLDivElement>(null)
 
@@ -116,6 +119,7 @@ export function Modal({
       role="dialog"
       aria-modal="true"
       aria-label={label}
+      style={zIndex ? { zIndex } : undefined}
     >
       <div className={'modalbox ' + className} style={{ width }} ref={ref}>
         {children}
@@ -137,19 +141,48 @@ export function Stars({
   size?: number
   readOnly?: boolean
 }): React.ReactElement {
+  const [hover, setHover] = React.useState(0)
+  const ref = React.useRef<HTMLDivElement>(null)
+  const shown = readOnly ? value : hover || value
+
+  const pop = (n: number): void => {
+    const nodes = ref.current?.querySelectorAll<HTMLButtonElement>('.star')
+    if (!nodes) return
+    nodes.forEach((node, idx) => {
+      if (idx + 1 > n) return
+      node.classList.remove('pop')
+      // 强制一次 reflow，让连续点击也能重新播放
+      void node.offsetWidth
+      window.setTimeout(() => node.classList.add('pop'), idx * 20)
+    })
+  }
+
   return (
-    <div className={'stars' + (readOnly ? ' ro' : '')}>
+    <div
+      ref={ref}
+      className={'stars' + (readOnly ? ' ro' : '')}
+      onMouseLeave={() => setHover(0)}
+    >
       {[1, 2, 3, 4, 5].map((i) => (
         <button
           key={i}
           type="button"
-          className={'star' + (i <= value ? ' on' : '')}
+          className={
+            'star' +
+            (i <= shown ? ' on' : '') +
+            (!readOnly && hover && i <= hover ? ' pv' : '')
+          }
           data-star={i}
           disabled={readOnly}
           style={{ '--i': i } as React.CSSProperties}
+          onMouseEnter={() => {
+            if (!readOnly) setHover(i)
+          }}
           onClick={(e) => {
             e.stopPropagation()
-            if (!readOnly) onChange?.(i)
+            if (readOnly) return
+            onChange?.(i)
+            pop(i)
           }}
           onKeyDown={(e) => e.stopPropagation()}
           title={readOnly ? undefined : `${i} 星`}

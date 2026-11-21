@@ -283,6 +283,31 @@ export interface BatchPatch {
   favorite?: boolean
 }
 
+/**
+ * 单条记录的局部修改（0.14.0：大图查看器里直接改参数 / 备注 / 标题）。
+ * 只列出允许改的字段，避免渲染层误改 id / 时间戳。
+ */
+export interface EntryPatch {
+  title?: string
+  positive?: string
+  negative?: string
+  note?: string
+  params?: PromptParams
+  source?: SourceInfo
+  rating?: number
+  favorite?: boolean
+  tagIds?: Id[]
+  collectionIds?: Id[]
+  assetIds?: Id[]
+}
+
+/** 图片变换：翻转 / 去色，保存为新产物时原图不动 */
+export interface AssetTransform {
+  flipX?: boolean
+  flipY?: boolean
+  gray?: boolean
+}
+
 /** 导入结果回执 */
 export interface ImportResult {
   /** 新入库媒体数 */

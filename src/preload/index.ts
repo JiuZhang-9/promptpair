@@ -24,6 +24,7 @@ const api = {
   deleteEntries: (ids: string[]) => ipcRenderer.invoke('entry:delete', ids) as Promise<{ deleted: number }>,
   batchPatch: (ids: string[], patch: unknown) =>
     ipcRenderer.invoke('entry:batch', ids, patch) as Promise<{ updated: number }>,
+  patchEntry: (id: string, patch: unknown) => ipcRenderer.invoke('entry:patch', id, patch),
 
   /* 标签 / 集合 */
   createTag: (name: string, groupId: string) => ipcRenderer.invoke('tag:create', name, groupId),
@@ -61,6 +62,9 @@ const api = {
   /* 媒体 */
   addAssets: (paths: string[]) => ipcRenderer.invoke('asset:add', paths),
   addFromClipboard: () => ipcRenderer.invoke('asset:fromClipboard'),
+  transformAsset: (assetId: string, opts: unknown) =>
+    ipcRenderer.invoke('asset:transform', assetId, opts),
+  copyAssetImage: (assetId: string) => ipcRenderer.invoke('asset:copyImage', assetId),
   revealAsset: (assetId: string) => ipcRenderer.invoke('asset:reveal', assetId),
   saveAssetAs: (assetId: string, suggestedName?: string) =>
     ipcRenderer.invoke('asset:saveAs', assetId, suggestedName) as Promise<string | null>,

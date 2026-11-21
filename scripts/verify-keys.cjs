@@ -97,16 +97,12 @@ app.whenReady().then(async () => {
     assert(!!second && second !== first, '方向键移动焦点', { first, second })
 
     await press(win, 'e')
-    const editor = await js(win, `(() => { const o = document.querySelector('.overlay'); return o ? o.textContent : '' })()`)
-    assert(editor.includes('编辑记录'), 'E 打开编辑器')
-    await js(win, `
-      (() => {
-        const b = [...document.querySelectorAll('.overlay .btn')].find(x => x.textContent.includes('取消'))
-        if (b) b.click()
-        return !!b
-      })()
-    `)
+    const editor = await js(win, `(() => { const o = document.querySelector('.es-screen'); return o ? o.textContent : '' })()`)
+    assert(editor.includes('编辑记录'), 'E 打开全屏编辑器')
+    await js(win, `document.querySelector('.es-top .btn.ghost')?.click()`)
     await sleep(400)
+    await js(win, `document.querySelector('[data-confirm-ok]')?.click()`)
+    await sleep(300)
 
     await press(win, ' ')
     const count1 = await js(win, `(() => { const b = document.querySelector('.bb-count b'); return b ? Number(b.textContent) : 0 })()`)

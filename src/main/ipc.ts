@@ -1,12 +1,14 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import os from 'node:os'
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, net, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, nativeTheme, net, shell } from 'electron'
 import type {
   AppConfig,
+  AssetTransform,
   BatchPatch,
   CapturePayload,
   EntryDraft,
+  EntryPatch,
   ExportOptions,
   ImportResult,
   LibraryData,
@@ -21,7 +23,7 @@ import { defaultLibraryPath } from './config'
 import { importCaptured, importFiles, type ImportOptions } from './importer'
 import { defaultPackName, exportJson, exportPack, exportSingleHtml, exportStandaloneSite, mergePack } from './exporter'
 import { scanDuplicates } from './duplicates'
-import { addFileToLibrary, repairAsset, hammingHex } from './media'
+import { addFileToLibrary, repairAsset, transformAsset, hammingHex } from './media'
 import { suggestTags, testAiConnection } from './ai'
 import { startCaptureServer, getCapturePort } from './capture'
 import { checkForUpdatesManually, getUpdateStatus, quitAndInstall } from './updater'
@@ -244,6 +246,13 @@ export function registerIpc(ctx: AppCtx): void {
     // 评分/收藏是高频动作：内存立即生效，落盘延迟 250ms，避免每次点星都同步写整库
     ctx.lib.touch()
     return { updated: n }
+  })
+
+  ipcMain.handle('entry:patch', (_e, id: string, patch: EntryPatch) => {
+    const entry = ctx.lib.patchEntry(id, patch)
+    // 查看器内联编辑是逐字触发的：内存立即生效，落盘交给 250ms debounce
+    ctx.lib.touch()
+    return entry
   })
 
   /* ───────────── 标签 / 集合 ───────────── */
@@ -482,6 +491,23 @@ export function registerIpc(ctx: AppCtx): void {
       return r.filePath
     }
   )
+
+  /** 翻转 / 去色：返回新入库的资源（原图不动） */
+  ipcMain.handle('asset:transform', async (_e, assetId: string, opts: AssetTransform) => {
+    const asset = await transformAsset(ctx.lib, assetId, opts)
+    ctx.lib.flush()
+    return asset
+  })
+
+  /** 把图片放进系统剪贴板 */
+  ipcMain.handle('asset:copyImage', (_e, assetId: string) => {
+    const a = ctx.lib.getAsset(assetId)
+    if (!a || a.kind !== 'image') return false
+    const img = nativeImage.createFromPath(ctx.lib.abs(a.relPath))
+    if (img.isEmpty()) return false
+    clipboard.writeImage(img)
+    return true
+  })
 
   ipcMain.handle('asset:repairAll', async () => {
     let fixed = 0

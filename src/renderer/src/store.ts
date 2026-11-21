@@ -5,6 +5,7 @@ import type {
   BatchPatch,
   Collection,
   EntryDraft,
+  EntryPatch,
   ImportResult,
   KindFilter,
   LibraryData,
@@ -180,6 +181,7 @@ export interface StoreState {
     patch: BatchPatch,
     opts?: { quiet?: boolean; optimistic?: boolean }
   ) => Promise<void>
+  patchEntry: (id: string, patch: EntryPatch) => Promise<void>
 
   doImport: (paths: string[], opts?: ImportOptions) => Promise<ImportResult | null>
   importDialog: (mode: 'files' | 'folder') => Promise<void>
@@ -835,6 +837,46 @@ export const useStore = create<StoreState>((set, get) => ({
         }))
       }
       get().toast('批量修改失败：' + (e as Error).message, 'err')
+    }
+  },
+
+  /** 查看器内联编辑：只改单条记录，本地先更新，失败回滚 */
+  async patchEntry(id, patch) {
+    const prev = get().data.entries.find((e) => e.id === id)
+    if (!prev) return
+    set((s) => ({
+      data: {
+        ...s.data,
+        entries: s.data.entries.map((e) => {
+          if (e.id !== id) return e
+          const next = { ...e }
+          if (patch.title !== undefined) next.title = patch.title
+          if (patch.positive !== undefined) next.positive = patch.positive
+          if (patch.negative !== undefined) next.negative = patch.negative
+          if (patch.note !== undefined) next.note = patch.note
+          if (patch.params !== undefined) next.params = patch.params
+          if (patch.source !== undefined) next.source = { ...e.source, ...patch.source }
+          if (patch.rating !== undefined) next.rating = patch.rating
+          if (patch.favorite !== undefined) next.favorite = patch.favorite
+          if (patch.tagIds !== undefined) next.tagIds = [...new Set(patch.tagIds)]
+          if (patch.collectionIds !== undefined)
+            next.collectionIds = [...new Set(patch.collectionIds)]
+          if (patch.assetIds !== undefined) next.assetIds = [...new Set(patch.assetIds)]
+          next.updatedAt = new Date().toISOString()
+          return next
+        })
+      }
+    }))
+    try {
+      await window.pp.patchEntry(id, patch)
+    } catch (e) {
+      set((s) => ({
+        data: {
+          ...s.data,
+          entries: s.data.entries.map((x) => (x.id === id ? prev : x))
+        }
+      }))
+      get().toast('保存失败：' + (e as Error).message, 'err')
     }
   },
 

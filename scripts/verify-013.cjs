@@ -131,8 +131,8 @@ app.whenReady().then(async () => {
         const v = document.querySelector('.viewer')
         return {
           open: !!v,
-          title: document.querySelector('.v-title')?.textContent || '',
-          collection: document.querySelector('.v-sect .v-pillbtn')?.textContent || '',
+          title: document.querySelector('.v-title-input')?.value || '',
+          collection: document.querySelector('.v-sec .cp-chip')?.textContent || '',
           img: !!document.querySelector('.v-img')
         }
       })()`
@@ -157,12 +157,12 @@ app.whenReady().then(async () => {
     await js(
       win,
       `document.querySelector('.v-stage').dispatchEvent(new WheelEvent('wheel', {
-        deltaY: -120, bubbles: true, cancelable: true, clientX: 600, clientY: 400
+        deltaY: -120, ctrlKey: true, bubbles: true, cancelable: true, clientX: 600, clientY: 400
       }))`
     )
     await sleep(220)
     const pctWheel = await js(win, `document.querySelector('.v-pct').textContent`)
-    assert(pctWheel !== '100%', '滚轮可放大图片', { pctBefore, pctWheel })
+    assert(pctWheel !== '100%', 'Ctrl+滚轮可放大图片', { pctBefore, pctWheel })
     await js(win, `document.querySelector('.v-zoom button[title="适应窗口"]').click()`)
     await sleep(180)
     await js(win, `document.querySelector('.v-zoom button[title="放大"]').click()`)
