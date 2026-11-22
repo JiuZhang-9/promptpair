@@ -253,6 +253,14 @@ export interface SavedView {
 
 export type ThemeMode = 'system' | 'dark' | 'light'
 
+/** 窗口位置与大小，单位为 DIP（与 Electron getBounds 一致） */
+export interface WindowBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface AppConfig {
   /** 当前库根目录绝对路径 */
   libraryPath: string
@@ -279,6 +287,13 @@ export interface AppConfig {
   autoGroupByStem: boolean
   /** 关闭窗口时最小化到托盘 */
   minimizeToTray: boolean
+  /** 登录 Windows 后自动启动 PromptPair */
+  launchAtLogin: boolean
+  /** 开机自启时不显示主窗口，直接在托盘后台运行 */
+  startMinimized: boolean
+  /** 上次退出时的窗口位置与大小（含最大化标记） */
+  winBounds?: WindowBounds
+  winMaximized?: boolean
   /** 最后选中的集合（仅记忆，非业务数据） */
   lastCollectionId?: string
   /** 左栏是否收起（仅 UI 偏好，存 userData，不进库） */

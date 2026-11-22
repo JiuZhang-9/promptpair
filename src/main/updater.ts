@@ -92,7 +92,8 @@ export function getUpdateStatus(): UpdateStatus {
  * 自动更新：基于 electron-updater + GitHub Releases。
  * 规则（与 docs/发布规范.md 一致）：
  *  - 只有「已打包」的版本才检查更新（开发态直接跳过）
- *  - 启动 8 秒后静默检查一次，之后每 4 小时一次
+ *  - 启动 2 秒后静默检查一次，之后每 8 秒一次（用户要求发布后尽快发现）
+ *  - 正在下载 / 已下载时暂停轮询；出错后等 60 秒再试，避免刷屏
  *  - 有新版自动下载，下载完成后再由用户确认是否重启安装
  */
 export function initUpdater(win: BrowserWindow | null): void {
@@ -163,14 +164,31 @@ export function initUpdater(win: BrowserWindow | null): void {
     })
     autoUpdater.on('error', (err: any) => push({ state: 'error', message: humanizeError(err) }))
 
-    const check = (): void => {
-      autoUpdater.checkForUpdates().catch((e: any) => {
+    let checking = false
+    let retryAfter = 0
+    const check = async (): Promise<void> => {
+      if (checking) return
+      if (
+        current.state === 'available' ||
+        current.state === 'downloading' ||
+        current.state === 'downloaded'
+      ) {
+        return
+      }
+      if (Date.now() < retryAfter) return
+      checking = true
+      try {
+        await autoUpdater.checkForUpdates()
+      } catch (e: any) {
+        retryAfter = Date.now() + 60_000
         push({ state: 'error', message: humanizeError(e) })
-      })
+      } finally {
+        checking = false
+      }
     }
 
-    setTimeout(check, 8000)
-    setInterval(check, 4 * 60 * 60 * 1000)
+    setTimeout(() => void check(), 2000)
+    setInterval(() => void check(), 8000)
   } catch (e) {
     push({ state: 'error', message: '更新模块加载失败：' + humanizeError(e) })
   }

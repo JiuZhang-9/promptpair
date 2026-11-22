@@ -13,6 +13,8 @@ const DEFAULTS: Omit<AppConfig, 'libraryPath'> = {
   autoReadSidecar: true,
   autoGroupByStem: true,
   minimizeToTray: false,
+  launchAtLogin: false,
+  startMinimized: false,
   sidebarCollapsed: false,
   rightPanelCollapsed: false,
   packBaseExportedAt: '',

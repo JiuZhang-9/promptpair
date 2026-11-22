@@ -296,17 +296,20 @@ export function Field({
 export function Toggle({
   checked,
   onChange,
-  label
+  label,
+  disabled = false
 }: {
   checked: boolean
   onChange: (v: boolean) => void
   label: string
+  disabled?: boolean
 }): React.ReactElement {
   return (
     <button
       type="button"
       className={'toggle-row' + (checked ? ' on' : '')}
       onClick={() => onChange(!checked)}
+      disabled={disabled}
       role="switch"
       aria-checked={checked}
     >

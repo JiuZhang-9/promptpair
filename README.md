@@ -71,7 +71,8 @@
 | 模型显示 | 卡片/大图显示生成模型；编辑器里点开紧凑模型选择器直接改；AI 模型在设置里常显 |
 | AI 打标（可选） | 接入任意 OpenAI 兼容接口，候选标签确认后才写入；不填 Key 时完全离线 |
 | 分享 | 导出 `.promptpack`（可导回、含原图/视频）或单页 HTML（双击即看、直接复制）；预览页自带浏览 |
-| 自动更新 | GitHub Releases + electron-updater，静默检查、一键重启 |
+| 窗口与托盘 | 记住窗口位置/大小/最大化；关闭到托盘；开机自启与后台启动（设置 → 启动与窗口） |
+| 自动更新 | GitHub Releases + electron-updater，启动 2 秒首查、之后每 8 秒静默检查、一键重启 |
 
 ---
 
@@ -109,6 +110,7 @@ env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-keys.cjs     # 键盘与
 env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-ui.cjs       # 布局、复制、缩放、框选
 env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-share.cjs    # 单页 HTML 分享
 env -u ELECTRON_RUN_AS_NODE npx electron scripts/verify-capture.cjs  # 浏览器采集接收端
+env -u ELECTRON_RUN_AS_NODE node scripts/verify-017.cjs              # 窗口记忆 / 托盘 / 开机自启（连启 4 次）
 ```
 
 > **产物目录只有一个：`release/`。**
@@ -203,6 +205,7 @@ Electron 33 · React 18 · TypeScript · Vite (electron-vite) · Zustand · ffla
 | 0.14.1 | 补丁：单击进详情、单图滚轮翻记录、红心、星级冷暖、关闭按钮命中区 | ✅ 已发布 |
 | 0.15.0 | 分得清：纯提示词文字卡片、T2I/I2I、模型能力标注（MJ 垫图），库结构 v3 | ✅ 已发布 |
 | 0.16.0 | 比得出：滑杆 / 并排 / 闪烁对比、同 prompt 跨模型、GIF、图片工具 | ✅ 已发布 |
+| 0.17.0 | 留得住：窗口记忆、开机自启、后台启动、关闭到托盘、更新提速 | ✅ 已发布 |
 | 1.0.0 | 敢托付：迁移保障、性能基线 | 远期 |
 
 完整清单（含每项的**验收标准**与"明确不做"的范围）见 **[docs/路线图.md](docs/路线图.md)**。

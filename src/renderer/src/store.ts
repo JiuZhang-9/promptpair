@@ -250,6 +250,8 @@ const EMPTY_CFG: AppConfig = {
   autoReadSidecar: true,
   autoGroupByStem: true,
   minimizeToTray: false,
+  launchAtLogin: false,
+  startMinimized: false,
   sidebarCollapsed: false,
   rightPanelCollapsed: false,
   aiEnabled: false,

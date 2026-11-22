@@ -26,6 +26,9 @@ extraResources:
     to: extension
     filter:
       - '**/*'
+  # 托盘图标（打包后 asar 里没有 build/，单独放进 resources）
+  - from: build/icon.png
+    to: icon.png
 
 asar: true
 compression: maximum

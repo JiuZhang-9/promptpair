@@ -38,6 +38,8 @@ export interface AppCtx {
   lib: Library
   setLib(next: Library): Library
   cfg: Config
+  /** 配置里的开机自启 / 托盘开关变化后，同步系统状态 */
+  syncDesktop(): void
 }
 
 function send(ctx: AppCtx, channel: string, payload: unknown): void {
@@ -224,6 +226,13 @@ export function registerIpc(ctx: AppCtx): void {
     if (patch.theme != null) nativeTheme.themeSource = cfg.theme
     if (patch.uiScale != null || patch.theme != null) {
       applyUiScale(ctx.win, cfg.uiScale ?? 1)
+    }
+    if (
+      patch.minimizeToTray != null ||
+      patch.launchAtLogin != null ||
+      patch.startMinimized != null
+    ) {
+      ctx.syncDesktop()
     }
     return cfg
   })

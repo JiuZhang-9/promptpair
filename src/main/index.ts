@@ -2,7 +2,18 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { Readable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
-import electron, { app, BrowserWindow, nativeTheme, protocol, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  nativeImage,
+  nativeTheme,
+  protocol,
+  screen,
+  shell,
+  Tray
+} from 'electron'
+import type { AppConfig, WindowBounds } from '../shared/types'
 import { Library } from './library'
 import { Config, defaultLibraryPath } from './config'
 import { registerIpc, type AppCtx } from './ipc'
@@ -76,15 +87,159 @@ const MIME: Record<string, string> = {
 
 let win: BrowserWindow | null = null
 let ctx: AppCtx | null = null
+let tray: Tray | null = null
+let quitting = false
+let boundsTimer: NodeJS.Timeout | null = null
 
-function createWindow(uiScale = 1): void {
+/** 开机自启由 `--hidden` 参数触发；普通双击启动不受 startMinimized 影响 */
+const HIDDEN_START = process.argv.includes('--hidden')
+const DEFAULT_WINDOW = { width: 1440, height: 900 }
+const MIN_WINDOW = { width: 1040, height: 640 }
+
+function displayForBounds(b: WindowBounds): Electron.Display | undefined {
+  return screen.getAllDisplays().find((d) => {
+    const a = d.workArea
+    const ox = Math.min(b.x + b.width, a.x + a.width) - Math.max(b.x, a.x)
+    const oy = Math.min(b.y + b.height, a.y + a.height) - Math.max(b.y, a.y)
+    return ox >= 100 && oy >= 80
+  })
+}
+
+/** 恢复上次窗口大小；显示器拔掉/分辨率变了就回到默认尺寸并居中 */
+function restoreBounds(saved?: WindowBounds): {
+  x?: number
+  y?: number
+  width: number
+  height: number
+} {
+  const displays = screen.getAllDisplays()
+  const fallbackW = Math.max(DEFAULT_WINDOW.width, ...displays.map((d) => d.workArea.width))
+  const fallbackH = Math.max(DEFAULT_WINDOW.height, ...displays.map((d) => d.workArea.height))
+  const target = saved ? displayForBounds(saved) : undefined
+  const maxW = target?.workArea.width ?? fallbackW
+  const maxH = target?.workArea.height ?? fallbackH
+  const width = Math.max(MIN_WINDOW.width, Math.min(Math.round(saved?.width ?? DEFAULT_WINDOW.width), maxW))
+  const height = Math.max(
+    MIN_WINDOW.height,
+    Math.min(Math.round(saved?.height ?? DEFAULT_WINDOW.height), maxH)
+  )
+  if (!saved || !target) return { width, height }
+  return { x: Math.round(saved.x), y: Math.round(saved.y), width, height }
+}
+
+function persistWindowState(): void {
+  if (!win || win.isDestroyed() || !ctx || win.isMinimized()) return
+  const maximized = win.isMaximized()
+  const b = maximized ? win.getNormalBounds() : win.getBounds()
+  if (!b.width || !b.height) return
+  ctx.cfg.patch({
+    winBounds: { x: b.x, y: b.y, width: b.width, height: b.height },
+    winMaximized: maximized
+  })
+}
+
+function schedulePersistWindowState(): void {
+  if (boundsTimer) clearTimeout(boundsTimer)
+  boundsTimer = setTimeout(() => {
+    boundsTimer = null
+    persistWindowState()
+  }, 500)
+}
+
+function trayIconPath(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.png')
+    : path.join(__dirname, '../../build/icon.png')
+}
+
+function ensureTray(): boolean {
+  if (tray) return true
+  try {
+    let img = nativeImage.createFromPath(trayIconPath())
+    if (img.isEmpty()) img = nativeImage.createFromPath(process.execPath)
+    if (img.isEmpty()) return false
+    tray = new Tray(img.resize({ width: 16, height: 16 }))
+    tray.setToolTip('PromptPair')
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: '显示主窗口', click: () => showMainWindow() },
+        { type: 'separator' },
+        {
+          label: '退出 PromptPair',
+          click: () => {
+            quitting = true
+            app.quit()
+          }
+        }
+      ])
+    )
+    tray.on('click', () => showMainWindow())
+    tray.on('double-click', () => showMainWindow())
+    return true
+  } catch (e) {
+    console.error('[desktop] 托盘创建失败', e)
+    return false
+  }
+}
+
+function destroyTray(): void {
+  if (!tray) return
+  try {
+    tray.destroy()
+  } catch {
+    /* ignore */
+  }
+  tray = null
+}
+
+function showMainWindow(): void {
+  if (!win || win.isDestroyed()) {
+    if (ctx) createWindow(ctx.cfg.data.uiScale ?? 1, false)
+  } else {
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+  }
+  syncDesktopPrefs()
+}
+
+function applyLoginItem(cfg: AppConfig): void {
+  try {
+    const extra = cfg.startMinimized ? ['--hidden'] : []
+    if (process.defaultApp) {
+      const appPath = path.resolve(process.argv[1] ?? '')
+      app.setLoginItemSettings({
+        openAtLogin: cfg.launchAtLogin,
+        path: process.execPath,
+        args: appPath ? [appPath, ...extra] : extra
+      })
+    } else {
+      app.setLoginItemSettings({ openAtLogin: cfg.launchAtLogin, args: extra })
+    }
+  } catch (e) {
+    console.error('[desktop] 开机自启设置失败', e)
+  }
+}
+
+function syncDesktopPrefs(): void {
+  if (!ctx) return
+  applyLoginItem(ctx.cfg.data)
+  const needTray =
+    ctx.cfg.data.minimizeToTray || (!!win && !win.isVisible()) || HIDDEN_START
+  if (needTray) ensureTray()
+  else destroyTray()
+}
+
+function createWindow(uiScale = 1, startHidden = false): void {
   const isDark = nativeTheme.shouldUseDarkColors
+  const bounds = restoreBounds(ctx?.cfg.data.winBounds)
+  const wantMax = !!ctx?.cfg.data.winMaximized
 
-  win = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 1040,
-    minHeight: 640,
+  const winOpts: Electron.BrowserWindowConstructorOptions = {
+    width: bounds.width,
+    height: bounds.height,
+    minWidth: MIN_WINDOW.width,
+    minHeight: MIN_WINDOW.height,
     show: false,
     backgroundColor: isDark ? '#131315' : '#f7f7f8',
     title: 'PromptPair',
@@ -103,17 +258,31 @@ function createWindow(uiScale = 1): void {
       webSecurity: true,
       spellcheck: false
     }
-  })
+  }
+  if (bounds.x != null && bounds.y != null) {
+    winOpts.x = bounds.x
+    winOpts.y = bounds.y
+  }
+  win = new BrowserWindow(winOpts)
 
   // 页面缩放要在 load 之前应用，避免启动时先闪一下 100%。
   applyUiScale(win, clampUiScale(uiScale))
 
-  win.once('ready-to-show', () => win?.show())
+  win.once('ready-to-show', () => {
+    if (wantMax) win?.maximize()
+    if (startHidden) {
+      // 托盘图标起不来时不要留一个看不见也点不到的进程
+      if (!ensureTray()) win?.show()
+    } else {
+      win?.show()
+    }
+  })
 
   // 某些远程桌面 / 无 GPU 环境不会触发 ready-to-show，窗口会一直藏着。
   // 页面加载完成或 2 秒后仍不可见就强制显示，避免“启动了但没窗口”。
   const reveal = (): void => {
-    if (!win || win.isDestroyed()) return
+    if (!win || win.isDestroyed() || startHidden) return
+    if (wantMax) win.maximize()
     if (!win.isVisible()) win.show()
   }
   win.webContents.once('did-finish-load', () => {
@@ -143,12 +312,33 @@ function createWindow(uiScale = 1): void {
     win.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 
+  win.on('resize', schedulePersistWindowState)
+  win.on('move', schedulePersistWindowState)
+  win.on('maximize', () => {
+    schedulePersistWindowState()
+    win?.webContents.send('window:state', { maximized: true })
+  })
+  win.on('unmaximize', () => {
+    schedulePersistWindowState()
+    win?.webContents.send('window:state', { maximized: false })
+  })
+  win.on('show', () => syncDesktopPrefs())
+  win.on('hide', () => {
+    if (!quitting) ensureTray()
+  })
+
+  win.on('close', (e) => {
+    persistWindowState()
+    if (!quitting && ctx?.cfg.data.minimizeToTray) {
+      e.preventDefault()
+      win?.hide()
+      ensureTray()
+    }
+  })
+
   win.on('closed', () => {
     win = null
   })
-
-  win.on('maximize', () => win?.webContents.send('window:state', { maximized: true }))
-  win.on('unmaximize', () => win?.webContents.send('window:state', { maximized: false }))
 }
 
 /** 自定义协议：ppmedia://media/<assetId> 与 ppmedia://thumb/<assetId> */
@@ -266,11 +456,13 @@ app.whenReady().then(async () => {
       cfg.patch({ libraryPath: next.root })
       return lib
     },
-    cfg
+    cfg,
+    syncDesktop: syncDesktopPrefs
   }
 
+  applyLoginItem(cfg.data)
   registerMediaProtocol(() => lib)
-  createWindow(ctx.cfg.data.uiScale ?? 1)
+  createWindow(ctx.cfg.data.uiScale ?? 1, HIDDEN_START)
   registerIpc(ctx)
 
   nativeTheme.on('updated', () => {
@@ -283,6 +475,9 @@ app.whenReady().then(async () => {
 
   // 退出前确保库落盘
   const flush = (): void => {
+    quitting = true
+    persistWindowState()
+    destroyTray()
     try {
       lib?.dispose()
     } catch {
@@ -299,14 +494,11 @@ app.whenReady().then(async () => {
       void handleForwardedAdd(argv, { lib, win })
       return
     }
-    if (win) {
-      if (win.isMinimized()) win.restore()
-      win.focus()
-    }
+    showMainWindow()
   })
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    showMainWindow()
   })
 })
 

@@ -5,6 +5,7 @@ import { Icon, Modal, Toggle } from './ui'
 const SECTIONS = [
   ['library', '素材库'],
   ['appearance', '外观'],
+  ['startup', '启动与窗口'],
   ['import', '导入规则'],
   ['duplicates', '重复检测'],
   ['capture', '浏览器插件'],
@@ -239,6 +240,46 @@ export default function SettingsPanel(): React.ReactElement {
               onPointerUp={(e) => commitUiScale(Number(e.currentTarget.value))}
               onKeyUp={(e) => commitUiScale(Number(e.currentTarget.value))}
               onBlur={(e) => commitUiScale(Number(e.currentTarget.value))}
+            />
+          </Row>
+        </div>
+
+        <div className="set-group" id="set-startup">
+          <div className="set-group-title">启动与窗口</div>
+          <Row label="窗口大小与位置" desc="下次打开自动恢复上次的大小、位置和最大化状态">
+            <span className="muted">自动记忆</span>
+          </Row>
+          <Row label="开机自动启动" desc="登录 Windows 后自动打开 PromptPair">
+            <Toggle
+              label=""
+              checked={config.launchAtLogin}
+              onChange={(v) =>
+                void applyConfig(
+                  v ? { launchAtLogin: true } : { launchAtLogin: false, startMinimized: false }
+                )
+              }
+            />
+          </Row>
+          <Row
+            label="开机时后台启动"
+            desc={
+              config.launchAtLogin
+                ? '不弹主窗口，直接在托盘运行；双击托盘图标打开'
+                : '先开启「开机自动启动」才能使用'
+            }
+          >
+            <Toggle
+              label=""
+              checked={config.startMinimized}
+              disabled={!config.launchAtLogin}
+              onChange={(v) => void applyConfig({ startMinimized: v })}
+            />
+          </Row>
+          <Row label="关闭窗口时最小化到托盘" desc="点右上角关闭不退出；从托盘菜单选「退出 PromptPair」才真正退出">
+            <Toggle
+              label=""
+              checked={config.minimizeToTray}
+              onChange={(v) => void applyConfig({ minimizeToTray: v })}
             />
           </Row>
         </div>
