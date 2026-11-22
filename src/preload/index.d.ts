@@ -60,6 +60,14 @@ export interface DupReport {
   usage: Record<string, string[]>
 }
 
+export interface CompareGifResult {
+  path: string
+  bytes: number
+  frames: number
+  width: number
+  height: number
+}
+
 export interface PpApi {
   info(): Promise<AppInfo>
   getState(): Promise<LibrarySnapshot>
@@ -113,6 +121,24 @@ export interface PpApi {
   addFromClipboard(): Promise<Asset | null>
   transformAsset(assetId: string, opts: AssetTransform): Promise<Asset>
   copyAssetImage(assetId: string): Promise<boolean>
+  exportCompareGif(
+    aId: string,
+    bId: string,
+    suggestedName?: string,
+    outPath?: string
+  ): Promise<CompareGifResult | null>
+  exportAssetWithPrompt(
+    assetId: string,
+    text: string,
+    suggestedName?: string,
+    outPath?: string
+  ): Promise<string | null>
+  exportCompressedAsset(
+    assetId: string,
+    quality: number,
+    suggestedName?: string,
+    outPath?: string
+  ): Promise<{ path: string; bytes: number } | null>
   revealAsset(assetId: string): Promise<boolean>
   saveAssetAs(assetId: string, suggestedName?: string): Promise<string | null>
   repairAssets(): Promise<{ fixed: number }>

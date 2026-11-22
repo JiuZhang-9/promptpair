@@ -15,6 +15,7 @@ export default function BatchBar(): React.ReactElement | null {
   const exportPack = useStore((s) => s.exportPack)
   const refresh = useStore((s) => s.refresh)
   const toast = useStore((s) => s.toast)
+  const openCompare = useStore((s) => s.openCompare)
 
   const groups = useMemo(() => groupMap(data), [data.tagGroups])
   const tagModal = useStore((s) => s.batchTagModal)
@@ -102,6 +103,29 @@ export default function BatchBar(): React.ReactElement | null {
         <button type="button" className="bb-btn" onClick={() => setCollModal(true)}>
           <Icon name="folder" size={13} /> 归入集合
         </button>
+        {selectedIds.length === 2 && (
+          <button
+            type="button"
+            className="bb-btn"
+            data-batch-compare
+            onClick={() => {
+              const [ea, eb] = selectedEntries
+              if (!ea || !eb) return
+              const firstImage = (e: typeof ea): string | undefined =>
+                e.assetIds.find((id) => data.assets.find((a) => a.id === id)?.kind === 'image')
+              const a = firstImage(ea)
+              const b = firstImage(eb)
+              if (!a || !b) {
+                toast('两条记录都需要至少一张图片才能对比')
+                return
+              }
+              openCompare({ entryId: ea.id, assetId: a }, { entryId: eb.id, assetId: b })
+            }}
+            title="把选中的两条记录并排 / 滑杆对比"
+          >
+            <Icon name="swap" size={13} /> 对比
+          </button>
+        )}
         <div className="bb-stars">
           <Stars
             value={0}

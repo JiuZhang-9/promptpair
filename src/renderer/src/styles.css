@@ -6938,3 +6938,453 @@ body {
   font-size: 8.5px;
   padding: 0 4px;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   0.16.0「比得出」：A/B 对比 / 滑杆 / 并排 / 闪烁 / GIF
+   ═══════════════════════════════════════════════════════════ */
+
+.cmp {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  animation: fadeIn 0.14s ease-out;
+}
+
+.cmp-top {
+  height: 54px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.cmp-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.cmp-title b {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.cmp-title .ico {
+  color: var(--fg-4);
+}
+
+.cmp-match {
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 99px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line-2);
+  color: var(--fg-4);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.cmp-match.prompt {
+  color: #f0bf5c;
+  border-color: rgba(240, 191, 92, 0.35);
+  background: rgba(240, 191, 92, 0.07);
+}
+
+.cmp-match.same {
+  color: var(--fg-2);
+  border-color: var(--line-3);
+}
+
+.cmp-top-spacer {
+  flex: 1;
+}
+
+.cmp-modes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.cmp-mode {
+  height: 25px;
+  padding: 0 9px;
+  border-radius: var(--r-xs);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+.cmp-mode:hover {
+  color: var(--fg);
+  background: var(--surface-3);
+}
+
+.cmp-mode.on {
+  color: var(--fg);
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+.cmp-btn {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--fg-2);
+  background: var(--surface-2);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.cmp-btn:hover:not(:disabled) {
+  color: var(--fg);
+  border-color: var(--line-3);
+  background: var(--surface-3);
+}
+
+.cmp-btn.primary {
+  background: var(--invert);
+  color: var(--invert-fg);
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.cmp-btn.primary:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.cmp-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.cmp-rot {
+  transform: rotate(90deg);
+}
+
+.cmp-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.cmp-stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: var(--stage);
+  overflow: hidden;
+  cursor: ew-resize;
+  user-select: none;
+  touch-action: none;
+}
+
+.cmp-stage.h {
+  cursor: ns-resize;
+}
+
+.cmp-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cmp-layer.a {
+  z-index: 2;
+}
+
+.cmp-layer.b {
+  z-index: 1;
+}
+
+.cmp-layer img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+}
+
+.cmp-divider {
+  position: absolute;
+  z-index: 4;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.cmp-divider.v {
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-1px);
+}
+
+.cmp-divider.h {
+  left: 0;
+  right: 0;
+  height: 2px;
+  transform: translateY(-1px);
+}
+
+.cmp-handle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(12, 12, 14, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+
+.cmp-divider.h .cmp-handle .ico {
+  transform: rotate(90deg);
+}
+
+.cmp-badge {
+  position: absolute;
+  top: 14px;
+  z-index: 5;
+  height: 24px;
+  max-width: 44%;
+  padding: 0 9px;
+  border-radius: 99px;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: rgba(10, 10, 11, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 11px;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
+.cmp-badge.left {
+  left: 14px;
+}
+
+.cmp-badge.right {
+  right: 14px;
+}
+
+.cmp-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 4px 9px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.38);
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 10.5px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.cmp-side {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--line);
+}
+
+.cmp-pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--stage);
+}
+
+.cmp-pane-head {
+  height: 34px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--fg-2);
+  font-size: 11px;
+}
+
+.cmp-pane-head .ellipsis {
+  min-width: 0;
+}
+
+.cmp-pane-head em {
+  margin-left: auto;
+  font-style: normal;
+  color: var(--fg-4);
+  font-size: 10px;
+}
+
+.cmp-ab {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.cmp-pane img {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.cmp-blink {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: var(--stage);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.cmp-blink img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.cmp-empty {
+  color: var(--fg-4);
+  font-size: 12px;
+}
+
+.cmp-foot {
+  height: 56px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.cmp-select {
+  min-width: 0;
+  max-width: 42%;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+.cmp-select > span {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--surface-4);
+  color: var(--fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.cmp-select select {
+  min-width: 0;
+  max-width: 190px;
+  height: 26px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fg-2);
+  font-size: 11px;
+}
+
+.cmp-select em {
+  min-width: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: normal;
+  color: var(--fg-4);
+  font-size: 10.5px;
+}
+
+.cmp-foot-spacer {
+  flex: 1;
+}
+
+.cmp-meta {
+  color: var(--fg-4);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+/* 对比层在查看器之上，toast 必须盖过所有浮层 */
+.toasts {
+  z-index: 700;
+}
+
+@media (max-width: 1180px) {
+  .cmp-title .cmp-match {
+    display: none;
+  }
+  .cmp-mode {
+    padding: 0 7px;
+  }
+  .cmp-select em {
+    display: none;
+  }
+}

@@ -1,7 +1,7 @@
 {
   "name": "promptpair",
   "productName": "PromptPair",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "description": "PromptPair - 把提示词与它产出的图片/视频配成一对，本地管理、打标分类、打包分享",
   "author": {
     "name": "PromptPair"
@@ -23,7 +23,8 @@
     "dist:dir": "npm run icon && npm run build && electron-builder --win --x64 --dir"
   },
   "dependencies": {
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.3.9",
+    "gifenc": "^1.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

@@ -5,6 +5,7 @@ import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
 import Gallery from './components/Gallery'
 import Viewer from './components/Viewer'
+import Compare from './components/Compare'
 import EntryEditor from './components/EntryEditor'
 import BatchBar from './components/BatchBar'
 import DupPanel from './components/DupPanel'
@@ -275,8 +276,8 @@ export default function App(): React.ReactElement {
       const t = e.target as HTMLElement
       const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
       if (typing) return
-      // 大图查看器有自己的键位（Esc / 方向键 / 缩放），不让底层快捷键穿透
-      if (document.querySelector('.viewer')) return
+      // 大图查看器 / A-B 对比有自己的键位（Esc / 方向键 / 缩放），不让底层快捷键穿透
+      if (document.querySelector('.viewer') || document.querySelector('.cmp')) return
 
       const mod = e.ctrlKey || e.metaKey
 
@@ -619,6 +620,7 @@ export default function App(): React.ReactElement {
       <SettingsPanel />
       <ShortcutsHelp />
       <Viewer />
+      <Compare />
       <Toasts />
       <CopyTip />
       <ConfirmHost />

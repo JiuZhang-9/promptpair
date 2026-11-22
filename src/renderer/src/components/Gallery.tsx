@@ -370,6 +370,7 @@ export default function Gallery(): React.ReactElement {
   const selectMany = useStore((s) => s.selectMany)
   const clearSelection = useStore((s) => s.clearSelection)
   const openViewer = useStore((s) => s.openViewer)
+  const openCompare = useStore((s) => s.openCompare)
   const closeViewer = useStore((s) => s.closeViewer)
   const startEdit = useStore((s) => s.startEdit)
   const startCreate = useStore((s) => s.startCreate)
@@ -975,6 +976,24 @@ export default function Gallery(): React.ReactElement {
             >
               <Icon name="eye" size={13} /> 放大查看
             </button>
+            {menuEntry.assetIds.filter((id) => assets.get(id)?.kind === 'image').length > 1 && (
+              <button
+                type="button"
+                className="ctx-item"
+                role="menuitem"
+                data-ctx-compare
+                onClick={() => {
+                  const imgs = menuEntry.assetIds.filter((id) => assets.get(id)?.kind === 'image')
+                  openCompare(
+                    { entryId: menuEntry.id, assetId: imgs[0] },
+                    { entryId: menuEntry.id, assetId: imgs[1] }
+                  )
+                  setCardMenu(null)
+                }}
+              >
+                <Icon name="swap" size={13} /> 对比第 1 / 第 2 张
+              </button>
+            )}
             <button
               type="button"
               className="ctx-item"

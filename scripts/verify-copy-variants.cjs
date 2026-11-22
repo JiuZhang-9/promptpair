@@ -88,6 +88,14 @@ app.whenReady().then(async () => {
     return
   }
   win.setSize(1440, 900)
+  try {
+    win.webContents.setBackgroundThrottling(false)
+  } catch {
+    /* ignore */
+  }
+  // 剪贴板写入需要窗口有焦点；被终端抢焦点时 navigator.clipboard 会静默失败
+  win.show()
+  win.focus()
   await sleep(900)
   try {
     // 只筛出 MJ 那条，卡片菜单才好点

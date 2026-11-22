@@ -41,6 +41,7 @@ export default function Viewer(): React.ReactElement | null {
   const data = useStore((s) => s.data)
   const closeViewer = useStore((s) => s.closeViewer)
   const openViewer = useStore((s) => s.openViewer)
+  const openCompare = useStore((s) => s.openCompare)
   const startEdit = useStore((s) => s.startEdit)
   const patchEntries = useStore((s) => s.patchEntries)
   const patchEntry = useStore((s) => s.patchEntry)
@@ -264,6 +265,42 @@ export default function Viewer(): React.ReactElement | null {
   const modelCaps = capabilitiesOf(modelPreset, entry.params.model ?? '', modelKind)
   const taskWarning = entryTask === 'i2i' && !modelCaps.i2i
 
+  /* ── A/B 对比入口：优先本条多图，否则找同 prompt 的另一条 ── */
+  const normPrompt = (s?: string): string =>
+    String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+  const compareImages = entry.assetIds.filter((id) => assets.get(id)?.kind === 'image')
+  const sibling = data.entries.find(
+    (e) =>
+      e.id !== entry.id &&
+      !!normPrompt(entry.positive) &&
+      normPrompt(e.positive) === normPrompt(entry.positive) &&
+      e.assetIds.some((id) => assets.get(id)?.kind === 'image')
+  )
+  const siblingImage = sibling?.assetIds.find((id) => assets.get(id)?.kind === 'image')
+  const compareTitle =
+    compareImages.length > 1
+      ? '对比本条的多张产物'
+      : sibling
+        ? `同 prompt 对比：${sibling.title || '未命名'}`
+        : '对比（需要两张图或另一条同 prompt 记录）'
+  const openSmartCompare = (): void => {
+    if (compareImages.length > 1) {
+      openCompare(
+        { entryId: entry.id, assetId: compareImages[0] },
+        { entryId: entry.id, assetId: compareImages[1] }
+      )
+      return
+    }
+    if (compareImages[0] && sibling && siblingImage) {
+      openCompare(
+        { entryId: entry.id, assetId: compareImages[0] },
+        { entryId: sibling.id, assetId: siblingImage }
+      )
+      return
+    }
+    toast('需要至少两张图，或另一条同 prompt 记录')
+  }
+
   /* ── 查看器内联修改 ── */
   const patchParams = (params: PromptParams, negative?: string): void => {
     void patchEntry(entry.id, negative === undefined ? { params } : { params, negative })
@@ -358,7 +395,7 @@ export default function Viewer(): React.ReactElement | null {
   const openMenu = (e: React.MouseEvent<HTMLDivElement>): void => {
     e.preventDefault()
     const x = clamp(e.clientX, 8, window.innerWidth - 246)
-    const y = clamp(e.clientY, 8, window.innerHeight - 260)
+    const y = clamp(e.clientY, 8, window.innerHeight - 430)
     setMenu({ x, y })
   }
 
@@ -681,6 +718,57 @@ export default function Viewer(): React.ReactElement | null {
                   className="ctx-item"
                   onClick={() => {
                     setMenu(null)
+                    if (!cur) return
+                    void window.pp
+                      .saveAssetAs(cur.id, entry.title)
+                      .then((p) => {
+                        if (p) toast('已另存为：' + p, 'ok')
+                      })
+                      .catch((err) => toast('另存失败：' + errText(err), 'err'))
+                  }}
+                >
+                  <Icon name="save" size={14} /> 另存为图片…
+                </button>
+                <button
+                  type="button"
+                  className="ctx-item"
+                  disabled={cur?.kind !== 'image'}
+                  onClick={() => {
+                    setMenu(null)
+                    if (!cur) return
+                    void window.pp
+                      .exportAssetWithPrompt(cur.id, allText(), entry.title)
+                      .then((p) => {
+                        if (p) toast('已导出带提示词的 PNG：' + p, 'ok')
+                      })
+                      .catch((err) => toast('导出失败：' + errText(err), 'err'))
+                  }}
+                >
+                  <Icon name="tag" size={14} /> 导出带提示词的 PNG…
+                </button>
+                <button
+                  type="button"
+                  className="ctx-item"
+                  disabled={cur?.kind !== 'image'}
+                  onClick={() => {
+                    setMenu(null)
+                    if (!cur) return
+                    void window.pp
+                      .exportCompressedAsset(cur.id, 80, entry.title)
+                      .then((r) => {
+                        if (r) toast(`已压缩另存：${r.path}（${formatBytes(r.bytes)}）`, 'ok')
+                      })
+                      .catch((err) => toast('压缩失败：' + errText(err), 'err'))
+                  }}
+                >
+                  <Icon name="download" size={14} /> 压缩另存为 JPG（80%）…
+                </button>
+                <div className="ctx-sep" />
+                <button
+                  type="button"
+                  className="ctx-item"
+                  onClick={() => {
+                    setMenu(null)
                     if (cur) void window.pp.revealAsset(cur.id)
                   }}
                 >
@@ -750,6 +838,14 @@ export default function Viewer(): React.ReactElement | null {
                 }
               >
                 <Icon name="heart" size={15} />
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                title={compareTitle}
+                onClick={openSmartCompare}
+              >
+                <Icon name="swap" size={15} />
               </button>
               <button
                 type="button"

@@ -65,6 +65,20 @@ const api = {
   transformAsset: (assetId: string, opts: unknown) =>
     ipcRenderer.invoke('asset:transform', assetId, opts),
   copyAssetImage: (assetId: string) => ipcRenderer.invoke('asset:copyImage', assetId),
+  exportCompareGif: (aId: string, bId: string, suggestedName?: string, outPath?: string) =>
+    ipcRenderer.invoke('compare:exportGif', aId, bId, suggestedName, outPath),
+  exportAssetWithPrompt: (
+    assetId: string,
+    text: string,
+    suggestedName?: string,
+    outPath?: string
+  ) => ipcRenderer.invoke('asset:exportWithPrompt', assetId, text, suggestedName, outPath),
+  exportCompressedAsset: (
+    assetId: string,
+    quality: number,
+    suggestedName?: string,
+    outPath?: string
+  ) => ipcRenderer.invoke('asset:exportCompressed', assetId, quality, suggestedName, outPath),
   revealAsset: (assetId: string) => ipcRenderer.invoke('asset:reveal', assetId),
   saveAssetAs: (assetId: string, suggestedName?: string) =>
     ipcRenderer.invoke('asset:saveAs', assetId, suggestedName) as Promise<string | null>,

@@ -25,6 +25,8 @@ import { importCaptured, importFiles, type ImportOptions } from './importer'
 import { defaultPackName, exportJson, exportPack, exportSingleHtml, exportStandaloneSite, mergePack } from './exporter'
 import { scanDuplicates } from './duplicates'
 import { addFileToLibrary, repairAsset, transformAsset, hammingHex } from './media'
+import { exportCompareGif } from './compare'
+import { withPngText } from './pngText'
 import { suggestTags, testAiConnection } from './ai'
 import { startCaptureServer, getCapturePort } from './capture'
 import { checkForUpdatesManually, getUpdateStatus, quitAndInstall } from './updater'
@@ -513,6 +515,107 @@ export function registerIpc(ctx: AppCtx): void {
     clipboard.writeImage(img)
     return true
   })
+
+  /** 导出带提示词的 PNG：iTXt(parameters / PromptPair) 写入图片元数据 */
+  ipcMain.handle(
+    'asset:exportWithPrompt',
+    async (
+      _e,
+      assetId: string,
+      text: string,
+      suggestedName?: string,
+      outPath?: string
+    ): Promise<string | null> => {
+      const a = ctx.lib.getAsset(assetId)
+      if (!a || a.kind !== 'image') throw new Error('这条产物不是图片')
+      const img = nativeImage.createFromPath(ctx.lib.abs(a.relPath))
+      if (img.isEmpty()) throw new Error('图片解码失败')
+      const payload = String(text || '').trim()
+      const png = withPngText(img.toPNG(), [
+        { keyword: 'parameters', text: payload },
+        { keyword: 'PromptPair', text: payload }
+      ])
+      let target = typeof outPath === 'string' && outPath ? outPath : ''
+      if (!target) {
+        const r = await saveDialog(ctx, {
+          title: '导出带提示词的 PNG',
+          defaultPath: path.join(
+            app.getPath('downloads'),
+            safeName(suggestedName || a.id, 'image') + '-prompt.png'
+          ),
+          filters: [{ name: 'PNG 图片', extensions: ['png'] }]
+        })
+        if (r.canceled || !r.filePath) return null
+        target = r.filePath
+      }
+      fs.mkdirSync(path.dirname(target), { recursive: true })
+      fs.writeFileSync(target, png)
+      return target
+    }
+  )
+
+  /** 压缩另存为 JPG（单张） */
+  ipcMain.handle(
+    'asset:exportCompressed',
+    async (
+      _e,
+      assetId: string,
+      quality: number,
+      suggestedName?: string,
+      outPath?: string
+    ): Promise<{ path: string; bytes: number } | null> => {
+      const a = ctx.lib.getAsset(assetId)
+      if (!a || a.kind !== 'image') throw new Error('这条产物不是图片')
+      const img = nativeImage.createFromPath(ctx.lib.abs(a.relPath))
+      if (img.isEmpty()) throw new Error('图片解码失败')
+      const q = Math.max(20, Math.min(95, Math.round(Number(quality) || 80)))
+      const jpg = img.toJPEG(q)
+      let target = typeof outPath === 'string' && outPath ? outPath : ''
+      if (!target) {
+        const r = await saveDialog(ctx, {
+          title: '压缩另存为 JPG',
+          defaultPath: path.join(
+            app.getPath('downloads'),
+            safeName(suggestedName || a.id, 'image') + `-${q}.jpg`
+          ),
+          filters: [{ name: 'JPG 图片', extensions: ['jpg', 'jpeg'] }]
+        })
+        if (r.canceled || !r.filePath) return null
+        target = r.filePath
+      }
+      fs.mkdirSync(path.dirname(target), { recursive: true })
+      fs.writeFileSync(target, jpg)
+      return { path: target, bytes: jpg.length }
+    }
+  )
+
+  /** A/B 两帧循环 GIF；outPath 仅测试/CLI 用，正常走保存对话框 */
+  ipcMain.handle(
+    'compare:exportGif',
+    async (
+      _e,
+      aId: string,
+      bId: string,
+      suggestedName?: string,
+      outPath?: string
+    ) => {
+      let target = typeof outPath === 'string' && outPath ? outPath : ''
+      if (!target) {
+        const r = await saveDialog(ctx, {
+          title: '导出对比 GIF',
+          defaultPath: path.join(
+            app.getPath('downloads'),
+            safeName(suggestedName || 'compare', 'compare') + '.gif'
+          ),
+          filters: [{ name: 'GIF 动图', extensions: ['gif'] }]
+        })
+        if (r.canceled || !r.filePath) return null
+        target = r.filePath
+      }
+      const res = await exportCompareGif(ctx.lib, aId, bId, target)
+      return res
+    }
+  )
 
   ipcMain.handle('asset:repairAll', async () => {
     let fixed = 0

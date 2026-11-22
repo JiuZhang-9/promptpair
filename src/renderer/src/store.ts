@@ -72,6 +72,12 @@ interface ImportUiState {
   current: string
 }
 
+/** 对比目标：一条记录 + 其中一个产物 */
+export interface CompareTarget {
+  entryId: string
+  assetId: string
+}
+
 export interface StoreState {
   ready: boolean
   fatal: string | null
@@ -119,6 +125,8 @@ export interface StoreState {
   /** 打开查看器时当前筛选结果的顺序快照：单图条目用滚轮/方向键翻记录 */
   viewerIds: string[]
   viewerIndex: number
+  /** A/B 对比浮层；null = 关闭 */
+  compare: { a: CompareTarget; b: CompareTarget } | null
   editorOpen: boolean
   draft: EntryDraft | null
   dupReport: DupReport | null
@@ -176,6 +184,8 @@ export interface StoreState {
   selectAllFiltered: () => void
   openViewer: (id: string | null) => void
   closeViewer: () => void
+  openCompare: (a: CompareTarget, b: CompareTarget) => void
+  closeCompare: () => void
 
   startCreate: (assetIds?: string[]) => void
   startEdit: (id: string) => void
@@ -319,6 +329,7 @@ export const useStore = create<StoreState>((set, get) => ({
   viewerId: null,
   viewerIds: [],
   viewerIndex: -1,
+  compare: null,
   editorOpen: false,
   draft: null,
   dupReport: null,
@@ -435,6 +446,12 @@ export const useStore = create<StoreState>((set, get) => ({
           st.viewerId && entryIds.has(st.viewerId)
             ? st.viewerIds.filter((id) => entryIds.has(id)).indexOf(st.viewerId)
             : -1,
+        compare:
+          st.compare &&
+          entryIds.has(st.compare.a.entryId) &&
+          entryIds.has(st.compare.b.entryId)
+            ? st.compare
+            : null,
         collectionId:
           st.collectionId && !collIds.has(st.collectionId) ? null : st.collectionId,
         tagIds: st.tagIds.filter((id) => tagIds.has(id)),
@@ -736,11 +753,27 @@ export const useStore = create<StoreState>((set, get) => ({
       viewerId: id,
       viewerIds: ids,
       viewerIndex: Math.max(0, ids.indexOf(id)),
+      compare: null,
       panel: 'none',
       batchTagModal: 'none'
     })
   },
   closeViewer: () => set({ viewerId: null, viewerIds: [], viewerIndex: -1 }),
+  openCompare: (a, b) => {
+    if (!a?.assetId || !b?.assetId) return
+    const s = get()
+    if (!s.data.entries.some((e) => e.id === a.entryId)) return
+    if (!s.data.entries.some((e) => e.id === b.entryId)) return
+    set({
+      compare: { a, b },
+      viewerId: null,
+      viewerIds: [],
+      viewerIndex: -1,
+      panel: 'none',
+      batchTagModal: 'none'
+    })
+  },
+  closeCompare: () => set({ compare: null }),
 
   startCreate: (assetIds) =>
     set({
